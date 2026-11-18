@@ -1,0 +1,10 @@
+{
+  "name": "ahrivaea-tcg",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "node build.mjs && node tests/dev-server.mjs",
+    "test": "node build.mjs && node tests/server.test.mjs"
+  }
+}
