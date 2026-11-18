@@ -141,9 +141,13 @@ export class Hub {
 
   // Keeps accounts valid after the game's card list changes.
   async migrate(user) {
-    const known = new Set(SET());
+    const known = new Set([...SET(), ...Object.values(MANA)]);
     let refund = 0, changed = false;
     user.locked = user.locked || {};
+    if (!user.manaGiven) { // accounts made before starter decks included Mana cards
+      for (const fac of Object.keys(DECKS)) if ((user.locked[DECKS[fac][0]] || 0) > 0) this.grantMana(user, fac);
+      user.manaGiven = true; changed = true;
+    }
     for (const id of Object.keys(user.collection)) {
       if (!known.has(id)) { refund += (user.collection[id] - (user.locked[id] || 0)) * 10; delete user.collection[id]; delete user.locked[id]; changed = true; }
     }
@@ -162,8 +166,16 @@ export class Hub {
       user.locked[id] = (user.locked[id] || 0) + 2;
       cards[id] = 2;
     });
+    this.grantMana(user, fac);
     if (user.decks.length < ECON.maxDecks) user.decks.push({ id: 'd' + randHex(4), name: HEROES[fac].name.split(',')[0] + ' Starter', fac, cards });
     user.stats.starters = (user.stats.starters || 0) + 1;
+    user.manaGiven = true;
+  }
+  // Each starter deck comes with 15 Mana cards of its faction. They can't be sold.
+  grantMana(user, fac) {
+    const id = MANA[fac], n = 15;
+    user.collection[id] = (user.collection[id] || 0) + n;
+    user.locked[id] = (user.locked[id] || 0) + n;
   }
   async buyStarter(user, { fac }) {
     if (!DECKS[fac]) fail(400, 'Choose a starter deck.');
@@ -198,7 +210,7 @@ export class Hub {
         if (k > 0) { user.collection[cid] -= k; gained += k * SELL[DEFS[cid].rar]; }
       }
     } else {
-      if (!DEFS[id]) fail(400, 'Unknown card.');
+      if (!DEFS[id] || DEFS[id].type === 'Mana') fail(400, 'That card can’t be sold.');
       const k = Math.min(Math.max(1, Math.floor(+n || 1)), this.sellable(user, id));
       if (k <= 0) fail(400, 'Cards from your starter deck can’t be sold.');
       user.collection[id] -= k; gained = k * SELL[DEFS[id].rar];

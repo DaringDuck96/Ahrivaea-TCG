@@ -1,6 +1,7 @@
 // End-to-end checks of the server rules. Run: npm test
 import assert from 'node:assert/strict';
 import { Hub } from '../src/worker.js';
+import { MANA } from '../src/core.js';
 import { MemoryStorage, randomWire } from './mock-do.mjs';
 const hub = new Hub({ storage: new MemoryStorage() }, { ADMIN_USERS: '' });
 async function call(path, body, token) {
@@ -33,6 +34,16 @@ r = await call('/api/trade', { id: 'bloodied_recruit', n: 1 }, owner); assert.eq
 assert.equal((await call('/api/admin/sol', { name: 'Owner', sol: 1000 }, owner)).status, 200);
 r = await call('/api/starter', { fac: 'Oathsong' }, owner); assert.equal(r.status, 200); assert.equal(r.body.account.sol, 500); assert.equal(r.body.account.decks.length, 2);
 assert.equal(r.body.account.locked['shieldmaiden'], 2, 'bought starter cards are locked too');
+assert.equal(r.body.account.collection[MANA.Oathsong], 15, 'a starter deck comes with 15 Mana cards of its faction');
+assert.equal(r.body.account.collection[MANA.Warbound], 15); assert.equal(r.body.account.locked[MANA.Warbound], 15, 'Mana cards are locked');
+assert.equal((await call('/api/trade', { id: MANA.Warbound }, owner)).status, 400, 'Mana cards cannot be sold');
+{ // an account made before starters included Mana gets them on next login
+  const u = await hub.store.get('u:friend'); delete u.manaGiven; delete u.collection[MANA.Lorebound]; delete u.locked[MANA.Lorebound]; await hub.store.put('u:friend', u);
+  const lr = await call('/api/me', undefined, friend);
+  assert.equal(lr.body.account.collection[MANA.Lorebound], 15, 'old accounts get their Mana'); assert.equal(lr.body.account.collection[MANA.Warbound], undefined);
+  const lr2 = await call('/api/me', undefined, friend);
+  assert.equal(lr2.body.account.collection[MANA.Lorebound], 15, 'and only once');
+}
 for (let i = 0; i < 5; i++) { r = await call('/api/pack', {}, owner); assert.equal(r.status, 200); assert.equal(r.body.opened.length, 5);
   const rs = r.body.opened.map(c => c.rar); assert.deepEqual(rs.slice(0, 4), ['C', 'C', 'C', 'U']); assert.ok(['R', 'L'].includes(rs[4])); }
 assert.equal(r.body.account.sol, 0);

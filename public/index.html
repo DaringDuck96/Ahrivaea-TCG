@@ -1648,7 +1648,7 @@ function curveHTML(cards) {
 }
 function decksHTML() {
   const E = ECONF();
-  return `<div class="hub wide"><h1>Decks</h1><p class="sub">Click a deck to edit it. A deck is a hero plus ${E.deckSize} cards from that hero's faction; 15 Mana cards are added for free.</p>
+  return `<div class="hub wide"><h1>Decks</h1><p class="sub">Click a deck to edit it. A deck is a hero plus ${E.deckSize} cards from that hero's faction. Every deck also plays 15 Mana cards of its faction.</p>
   <div class="deckgrid"><button class="decktile newtile" data-act="newdeck"><b>+</b><span>New deck</span></button>
   ${ACC.decks.map(d => { const pr = deckProblems(d); return `<div class="decktile" style="--fc:${FAC[d.fac].c}"><button class="dtmain" data-act="editdeck" data-id="${d.id}"><span class="dthero">${esc(HEROES[d.fac].name)}</span><b>${esc(d.name)}</b><span class="dtstat ${pr.length ? 'bad' : 'ok'}">${pr.length ? 'Not ready: ' + esc(pr[0]) : 'Ready to play'}</span>${curveHTML(d.cards)}</button><div class="dtacts"><button class="mini ghost" data-act="dupdeck" data-id="${d.id}">Copy</button><button class="mini ghost" data-act="deldeck" data-id="${d.id}">Delete</button></div></div>`; }).join('')}</div>
   ${VIEW.confirmDel ? `<div class="modal"><div class="box"><h2>Delete this deck?</h2><p>${esc((ACC.decks.find(d => d.id === VIEW.confirmDel) || {}).name || '')} will be removed. Your cards stay in your collection.</p><button data-act="deldeckyes">Delete deck</button> <button class="ghost" data-act="deldeckno">Keep it</button></div></div>` : ''}</div>`;
@@ -1694,17 +1694,18 @@ function editHTML() {
     <div class="bcount"><span class="count ${n === E.deckSize ? 'ok' : ''}">${n}/${E.deckSize}</span><span class="muted small">${pr.length ? esc(pr.join(', ')) : 'Ready to play'}</span></div>
     ${curveHTML(d.cards)}
     <div class="dlist2">${list.map(([id, k]) => `<button class="dline r${DEFS[id].rar}" style="--fc:${FAC[DEFS[id].fac].c}" data-act="remcard" data-id="${id}" title="Click to remove one"><em>${costStr(DEFS[id])}</em> ${esc(DEFS[id].name)} <span>×${k}</span></button>`).join('') || '<p class="muted small">Click cards on the left to add them.</p>'}
-    ${d.fac ? `<div class="dline mana">15× ${esc(MANA_NAMES[d.fac])} (free)</div>` : ''}</div>
+    ${d.fac ? `<div class="dline mana">15× ${esc(MANA_NAMES[d.fac])} (Mana, always included)</div>` : ''}</div>
     <div class="bbtns"><button data-act="savedeck" ${BUSY ? 'disabled' : ''}>Done</button><button class="ghost" data-act="autofill" ${d.fac ? '' : 'disabled'}>Auto-fill</button><button class="ghost" data-act="cleardeck">Clear</button><button class="ghost" data-act="nav" data-to="decks">Cancel</button></div>
   </aside></div>`;
 }
 function collectionHTML() {
   const f = VIEW.colFac || 'All', r = VIEW.colRar || 'All';
   const ids = SETIDS().filter(id => (f === 'All' || DEFS[id].fac === f) && (r === 'All' || DEFS[id].rar === r)).sort((a, b) => DEFS[a].fac.localeCompare(DEFS[b].fac) || RAR_RANK[DEFS[b].rar] - RAR_RANK[DEFS[a].rar] || DEFS[a].mv - DEFS[b].mv);
+  if (r === 'All') ids.push(...Object.keys(MANA).filter(x => (f === 'All' || x === f) && owned(MANA[x])).map(x => MANA[x]));
   const ex = totalOverflow(), exSol = Object.keys(ACC.collection).reduce((s, id) => s + overflow(id) * sellOf(id), 0);
   const have = SETIDS().filter(id => owned(id)).length;
   return `<div class="hub wide"><h1>Collection</h1>
-  <p class="sub">${have} of ${SETIDS().length} cards in ${esc((CONF && CONF.releaseName) || 'Intro to Ahrivaea')}. Cards from packs sell for 5 Sol (Common), 10 (Uncommon), 25 (Rare) or 60 (Legendary). Starter Deck cards can't be sold.</p>
+  <p class="sub">${have} of ${SETIDS().length} cards in ${esc((CONF && CONF.releaseName) || 'Intro to Ahrivaea')}. Cards from packs sell for 5 Sol (Common), 10 (Uncommon), 25 (Rare) or 60 (Legendary). Starter Deck cards can't be sold. Each Starter Deck also comes with 15 Mana cards of its faction.</p>
   <div class="filters">${['All', ...Object.keys(HEROES)].map(x => `<button class="${x === f ? '' : 'ghost'}" data-act="colfac" data-f="${x}">${x}</button>`).join('')}</div>
   <div class="filters">${['All', 'C', 'U', 'R', 'L'].map(x => `<button class="${x === r ? '' : 'ghost'}" data-act="colrar" data-f="${x}">${x === 'All' ? 'All rarities' : RARITY[x]}</button>`).join('')}
   ${ex ? `<button data-act="tradeall" class="tradeall" ${BUSY ? 'disabled' : ''}>Sell ${ex} copies beyond ${ECONF().maxCopies} for ${exSol} Sol</button>` : ''}</div>
