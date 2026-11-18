@@ -1,6 +1,6 @@
 # Ahrivaea
 
-A fantasy trading card game you play in the browser. Players sign up with a name and password, get a starter deck and 500 Sol, open packs, build decks, and play against a computer opponent.
+A fantasy trading card game you play in the browser. Players sign up with a name and password, spend their starting 500 Sol on a Starter Deck, open packs, build decks, and play against a computer opponent.
 
 Everything that matters is decided on the server: Sol, packs, card collections and game results. The rules engine and the computer opponent also run on the server, so nobody can edit their Sol, see the computer's hand or fake a win.
 
@@ -27,10 +27,11 @@ To make another player an admin, add their name to `ADMIN_USERS` in `wrangler.to
 | Rule | Value |
 | --- | --- |
 | Starting Sol | 500 |
+| Starter Deck | 500 Sol (every new account buys one when signing up, so it starts with 0 Sol); more can be bought in the Shop |
 | Sol for a win against the computer | 20 |
 | Pack price | 100 Sol for 5 random cards from the Core Set |
 | Selling a card | 5 Sol each, only for cards opened in packs |
-| Starter deck cards | Can never be sold, so every player always has a playable deck |
+| Starter Deck cards | Can never be sold, so every player always has a playable deck |
 
 These numbers live in `ECON` at the top of `src/worker.js`.
 

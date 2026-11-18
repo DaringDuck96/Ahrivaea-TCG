@@ -10,7 +10,9 @@ async function call(path, body, token) {
 let r;
 // accounts
 r = await call('/api/signup', { name: 'Owner', password: 'secret1', starter: 'Warbound' });
-assert.equal(r.status, 200); const owner = r.body.token; assert.equal(r.body.account.sol, 500); assert.equal(r.body.account.admin, true);
+assert.equal(r.status, 200); const owner = r.body.token; assert.equal(r.body.account.sol, 0, '500 Sol minus the 500 Sol starter deck'); assert.equal(r.body.account.admin, true);
+assert.equal(r.body.account.decks.length, 1); assert.equal(Object.values(r.body.account.decks[0].cards).reduce((a, b) => a + b, 0), 40);
+assert.equal((await call('/api/starter', { fac: 'Oathsong' }, owner)).status, 400, 'no Sol for a second starter');
 r = await call('/api/signup', { name: 'friend', password: 'secret2', starter: 'Lorebound' });
 const friend = r.body.token; assert.equal(r.body.account.admin, false);
 assert.equal((await call('/api/signup', { name: 'OWNER', password: 'xxxxxx', starter: 'Warbound' })).status, 409, 'names are unique');
@@ -19,7 +21,10 @@ r = await call('/api/login', { name: 'owner', password: 'secret1' }); assert.equ
 assert.equal((await call('/api/me')).status, 401, 'needs a token');
 // starter cards can't be sold
 r = await call('/api/trade', { id: 'bloodied_recruit', n: 1 }, owner); assert.equal(r.status, 400);
-// packs
+// packs (the owner gives themselves Sol first)
+assert.equal((await call('/api/admin/sol', { name: 'Owner', sol: 1000 }, owner)).status, 200);
+r = await call('/api/starter', { fac: 'Oathsong' }, owner); assert.equal(r.status, 200); assert.equal(r.body.account.sol, 500); assert.equal(r.body.account.decks.length, 2);
+assert.equal(r.body.account.locked['shieldmaiden'], 2, 'bought starter cards are locked too');
 for (let i = 0; i < 5; i++) { r = await call('/api/pack', {}, owner); assert.equal(r.status, 200); assert.equal(r.body.opened.length, 5); }
 assert.equal(r.body.account.sol, 0);
 assert.equal((await call('/api/pack', {}, owner)).status, 400, 'no Sol, no pack');

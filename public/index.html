@@ -213,6 +213,13 @@ form.seat button[type=submit] { margin-top: 6px; }
 .atable th { color: var(--slate); font-weight: 500; font-size: 13px; }
 .atable input { width: 110px; font: inherit; padding: 5px 8px; border-radius: 6px; border: 1px solid #6b4a2a; background: #1a0f08; color: #fff; }
 .purse a { color: var(--brass-hi); }
+
+.pricebox { display: flex; align-items: stretch; gap: 10px; margin: 4px 0 10px; flex-wrap: wrap; }
+.pricebox > div:not(.op) { flex: 1; min-width: 140px; background: rgba(0,0,0,.3); border: 1px solid rgba(202,162,76,.5); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; }
+.pricebox b { font-family: var(--serif); font-size: 26px; color: var(--brass-hi); }
+.pricebox span { font-size: 13px; color: #eadcc4; }
+.pricebox .op { align-self: center; font-size: 26px; color: var(--brass-hi); font-family: var(--serif); }
+.facbtn em { font-style: normal; font-size: 12px; color: var(--brass-hi); margin-top: 2px; }
 </style>
 </head>
 <body>
@@ -1137,7 +1144,7 @@ function viewFor(seat, extra) {
 // ================= ONLINE CLIENT: accounts, hub screens, games against the computer =================
 const ONLINE = true;
 let ACC = null, CONF = null, TOKEN = null, SCREEN = 'home', VIEW = {}, GAME_ID = null, BUSY = false, TOAST = null, ADMIN = null, ACC_MODE = 'loading';
-const ECONF = () => (CONF && CONF.econ) || { startSol: 500, winSol: 20, packPrice: 100, packSize: 5, tradeValue: 5, maxCopies: 3, deckSize: 40 };
+const ECONF = () => (CONF && CONF.econ) || { startSol: 500, starterPrice: 500, winSol: 20, packPrice: 100, packSize: 5, tradeValue: 5, maxCopies: 3, deckSize: 40 };
 const SETIDS = () => Object.values(DEFS).filter(d => d.type !== 'Mana').map(d => d.id);
 
 function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { return null; } }
@@ -1228,12 +1235,13 @@ function hubHeader() {
 function authHTML() {
   const mode = VIEW.auth || 'login', facs = Object.keys(HEROES), pick = VIEW.signFac || 'Warbound';
   return `<div class="setup"><h1>Ahrivaea</h1>
-  <p class="sub">A fantasy trading card game. ${mode === 'login' ? 'Log in to your account.' : 'Create an account: you start with a starter deck and ' + ECONF().startSol + ' Sol to spend on packs.'}</p>
+  <p class="sub">A fantasy trading card game. ${mode === 'login' ? 'Log in to your account.' : 'Create an account to start collecting.'}</p>
+  ${mode === 'signup' ? `<div class="pricebox"><div><b>${ECONF().startSol} Sol</b><span>Every new account gets</span></div><div class="op">−</div><div><b>${ECONF().starterPrice} Sol</b><span>Your first Starter Deck costs</span></div><div class="op">=</div><div><b>${ECONF().startSol - ECONF().starterPrice} Sol</b><span>Left after you start</span></div></div><p class="sub small">Win games to earn ${ECONF().winSol} Sol each, then spend it on packs and more Starter Decks in the Shop.</p>` : ''}
   <div class="authtabs"><button class="${mode === 'login' ? '' : 'ghost'}" data-act="authmode" data-m="login">Log in</button><button class="${mode === 'signup' ? '' : 'ghost'}" data-act="authmode" data-m="signup">Create account</button></div>
   <form class="seat" data-form="${mode}"><label for="accname">Player name</label><input id="accname" autocomplete="username" maxlength="20" value="${esc(VIEW.signName || '')}">
   <label for="accpass">Password</label><input id="accpass" type="password" autocomplete="${mode === 'login' ? 'current-password' : 'new-password'}">
-  ${mode === 'signup' ? `<label>Your first starter deck</label><div class="facpick">${facs.map(f => `<button type="button" class="facbtn ${f === pick ? 'on' : ''}" style="--fc:${FAC[f].c}" data-act="signfac" data-f="${f}"><b>${f}</b><span>${esc(HEROES[f].name)}</span></button>`).join('')}</div><div class="hp">${heroPreview(pick)} Starter cards can never be sold, so you always keep a playable deck.</div>` : ''}
-  <button type="submit" ${BUSY ? 'disabled' : ''}>${mode === 'login' ? 'Log in' : 'Create account'}</button></form></div>`;
+  ${mode === 'signup' ? `<label>Choose your Starter Deck (${ECONF().starterPrice} Sol)</label><div class="facpick">${facs.map(f => `<button type="button" class="facbtn ${f === pick ? 'on' : ''}" style="--fc:${FAC[f].c}" data-act="signfac" data-f="${f}"><b>${f}</b><span>${esc(HEROES[f].name)}</span><em>${ECONF().starterPrice} Sol</em></button>`).join('')}</div><div class="hp">${heroPreview(pick)} You get 40 cards and a ready-to-play deck. Starter cards can never be sold, so you always keep a playable deck.</div>` : ''}
+  <button type="submit" ${BUSY ? 'disabled' : ''}>${mode === 'login' ? 'Log in' : `Create account and buy the ${pick} Starter Deck`}</button></form></div>`;
 }
 function homeHTML() {
   const E = ECONF(), ready = ACC.decks.filter(d => !deckProblems(d).length).length;
@@ -1244,7 +1252,7 @@ function homeHTML() {
     <button class="tile" data-act="nav" data-to="play"><b>Play</b><span>${ready} deck${ready === 1 ? '' : 's'} ready. Beat the computer to earn ${E.winSol} Sol.</span></button>
     <button class="tile" data-act="nav" data-to="decks"><b>Decks</b><span>${ACC.decks.length} saved. Build new ones from your collection.</span></button>
     <button class="tile" data-act="nav" data-to="collection"><b>Collection</b><span>${n} cards, ${uniq} of ${SETIDS().length} different.</span></button>
-    <button class="tile" data-act="nav" data-to="shop"><b>Shop</b><span>${(CONF && CONF.setName) || 'Core Set'} packs: ${E.packSize} random cards for ${E.packPrice} Sol.</span></button>
+    <button class="tile" data-act="nav" data-to="shop"><b>Shop</b><span>Packs: ${E.packSize} random cards for ${E.packPrice} Sol. Starter Decks: ${E.starterPrice} Sol.</span></button>
   </div>
   <p class="record">Record: ${ACC.stats.wins} wins, ${ACC.stats.losses} losses, ${ACC.stats.packs} packs opened.</p></div>`;
 }
@@ -1295,6 +1303,10 @@ function shopHTML() {
   <div class="packoffer"><div class="pack"><span>${set}</span><b>${E.packSize} cards</b></div>
   <div><h2 class="h2">${set} pack</h2><p class="sub small">${E.packSize} cards picked at random from all ${SETIDS().length} cards in the ${set}. You have ${ACC.sol} Sol.</p>
   <button data-act="buypack" ${can && !BUSY ? '' : 'disabled'}>Buy a pack for ${E.packPrice} Sol</button>${can ? '' : `<p class="muted small">You need ${E.packPrice - ACC.sol} more Sol. Win games or sell cards from packs.</p>`}</div></div>
+  <h2 class="h2">Starter Decks: ${E.starterPrice} Sol each</h2>
+  <p class="sub small">40 cards from one faction and a ready-to-play deck. Starter Deck cards can't be sold.</p>
+  <div class="facpick">${Object.keys(HEROES).map(f => { const n = (ACC.stats.starterFacs || {})[f] || 0; return `<button class="facbtn" style="--fc:${FAC[f].c}" data-act="buystarter" data-f="${f}" ${ACC.sol >= E.starterPrice && !BUSY ? '' : 'disabled'}><b>${f}</b><span>${esc(HEROES[f].name)}</span><em>Buy for ${E.starterPrice} Sol</em></button>`; }).join('')}</div>
+  ${ACC.sol < E.starterPrice ? `<p class="muted small">You need ${E.starterPrice - ACC.sol} more Sol for a Starter Deck.</p>` : ''}
   ${opened ? `<h2 class="h2">You opened</h2><div class="reveal">${opened.map((c, i) => `<div class="rv" style="animation-delay:${i * 180}ms">${cardFace({ id: c.id }, false).replace('data-act="card"', 'data-act="x"')}${c.fresh ? '<div class="newtag">New</div>' : ''}</div>`).join('')}</div>` : ''}</div>`;
 }
 function adminHTML() {
@@ -1331,6 +1343,7 @@ function hubClick(el, act) {
     case 'colfac': VIEW.colFac = el.dataset.f; VIEW.flash = null; render(); return true;
     case 'trade1': busy(async () => { const r = await api('/api/trade', { id, n: 1 }); ACC = r.account; VIEW.flash = `Sold 1 ${DEFS[id].name} for ${r.gained} Sol.`; }); return true;
     case 'tradeall': busy(async () => { const r = await api('/api/trade', { all: true }); ACC = r.account; VIEW.flash = `Sold your extra copies for ${r.gained} Sol.`; }); return true;
+    case 'buystarter': { const f = el.dataset.f; busy(async () => { const r = await api('/api/starter', { fac: f }); ACC = r.account; TOAST = `You bought the ${f} Starter Deck. It's in your Decks.`; }); return true; }
     case 'buypack': busy(async () => { const r = await api('/api/pack', {}); ACC = r.account; VIEW.opened = r.opened; }); return true;
     case 'setsol': { const u = ADMIN[+el.dataset.i], v = document.getElementById('sol' + el.dataset.i).value; busy(async () => { const r = await api('/api/admin/sol', { name: u.name, sol: +v }); ACC = r.account; u.sol = Math.floor(+v); TOAST = `${u.name} now has ${u.sol} Sol.`; }); return true; }
     case 'forfeit': busy(async () => { ACC = (await api('/api/game/forfeit', {})).account; G = null; GAME_ID = null; SCREEN = 'home'; }); return true;

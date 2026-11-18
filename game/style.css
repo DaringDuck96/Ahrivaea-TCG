@@ -206,3 +206,10 @@ form.seat button[type=submit] { margin-top: 6px; }
 .atable th { color: var(--slate); font-weight: 500; font-size: 13px; }
 .atable input { width: 110px; font: inherit; padding: 5px 8px; border-radius: 6px; border: 1px solid #6b4a2a; background: #1a0f08; color: #fff; }
 .purse a { color: var(--brass-hi); }
+
+.pricebox { display: flex; align-items: stretch; gap: 10px; margin: 4px 0 10px; flex-wrap: wrap; }
+.pricebox > div:not(.op) { flex: 1; min-width: 140px; background: rgba(0,0,0,.3); border: 1px solid rgba(202,162,76,.5); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; }
+.pricebox b { font-family: var(--serif); font-size: 26px; color: var(--brass-hi); }
+.pricebox span { font-size: 13px; color: #eadcc4; }
+.pricebox .op { align-self: center; font-size: 26px; color: var(--brass-hi); font-family: var(--serif); }
+.facbtn em { font-style: normal; font-size: 12px; color: var(--brass-hi); margin-top: 2px; }

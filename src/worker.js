@@ -1,7 +1,7 @@
 // ================= AHRIVAEA TCG SERVER (Cloudflare Worker + Durable Object) =================
 import { DEFS, HEROES, DECKS, MANA, replayGame, viewFor, validWire, gameState } from './core.js';
 
-const ECON = { startSol: 500, winSol: 20, packPrice: 100, packSize: 5, tradeValue: 5, maxCopies: 3, deckSize: 40, maxDecks: 30 };
+const ECON = { startSol: 500, starterPrice: 500, winSol: 20, packPrice: 100, packSize: 5, tradeValue: 5, maxCopies: 3, deckSize: 40, maxDecks: 30 };
 const SET_NAME = 'Core Set';
 const SET = () => Object.values(DEFS).filter(d => d.type !== 'Mana').map(d => d.id);
 const SESSION_DAYS = 60;
@@ -49,6 +49,7 @@ export class Hub {
         case 'POST /api/logout': await this.store.delete('s:' + token); return json({ ok: true });
         case 'GET /api/me': return json({ account: this.pub(user), config: this.config() });
         case 'POST /api/pack': return json(await this.pack(user));
+        case 'POST /api/starter': return json(await this.buyStarter(user, body));
         case 'POST /api/trade': return json(await this.trade(user, body));
         case 'POST /api/deck/save': return json(await this.saveDeck(user, body));
         case 'POST /api/deck/delete': return json(await this.deleteDeck(user, body));
@@ -79,12 +80,9 @@ export class Hub {
     if (await this.store.get(key)) fail(409, 'That name is taken. Try another.');
     const meta = (await this.store.get('meta')) || { users: 0 };
     const salt = randHex(16);
-    const collection = {}, locked = {}, cards = {};
-    DECKS[starter].forEach(id => { collection[id] = 2; locked[id] = 2; cards[id] = 2; });
     const user = { name, salt, hash: await hashPassword(password, salt), sol: ECON.startSol, created: Date.now(),
-      admin: meta.users === 0, collection, locked,
-      decks: [{ id: 'd' + randHex(4), name: HEROES[starter].name.split(',')[0] + ' Starter', fac: starter, cards }],
-      stats: { wins: 0, losses: 0, packs: 0 }, game: null };
+      admin: meta.users === 0, collection: {}, locked: {}, decks: [], stats: { wins: 0, losses: 0, packs: 0 }, game: null };
+    this.grantStarter(user, starter); // every account spends its first 500 Sol on a starter deck
     meta.users++;
     await this.store.put(key, user);
     await this.store.put('meta', meta);
@@ -134,6 +132,25 @@ export class Hub {
   }
 
   // ---------- economy ----------
+  grantStarter(user, fac) {
+    if (user.sol < ECON.starterPrice) fail(400, `A starter deck costs ${ECON.starterPrice} Sol.`);
+    user.sol -= ECON.starterPrice;
+    const cards = {};
+    DECKS[fac].forEach(id => {
+      user.collection[id] = (user.collection[id] || 0) + 2;
+      user.locked[id] = (user.locked[id] || 0) + 2;
+      cards[id] = 2;
+    });
+    if (user.decks.length < ECON.maxDecks) user.decks.push({ id: 'd' + randHex(4), name: HEROES[fac].name.split(',')[0] + ' Starter', fac, cards });
+    user.stats.starters = (user.stats.starters || 0) + 1;
+  }
+  async buyStarter(user, { fac }) {
+    if (!DECKS[fac]) fail(400, 'Choose a starter deck.');
+    if (user.game) fail(409, 'Finish or forfeit your current game first.');
+    this.grantStarter(user, fac);
+    await this.save(user);
+    return { account: this.pub(user) };
+  }
   sellable(user, id) { return Math.max(0, (user.collection[id] || 0) - ((user.locked || {})[id] || 0)); }
   async pack(user) {
     if (user.game) fail(409, 'Finish or forfeit your current game first.');
