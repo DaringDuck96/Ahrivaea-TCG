@@ -1,9 +1,13 @@
 // ================= AHRIVAEA TCG SERVER (Cloudflare Worker + Durable Object) =================
-import { DEFS, HEROES, DECKS, MANA, replayGame, viewFor, validWire, gameState } from './core.js';
+import { DEFS, HEROES, DECKS, MANA, RELEASES, CURRENT_RELEASE, replayGame, viewFor, validWire, gameState } from './core.js';
 
 const ECON = { startSol: 500, starterPrice: 500, winSol: 20, packPrice: 100, packSize: 5, tradeValue: 5, maxCopies: 3, deckSize: 40, maxDecks: 30 };
-const SET_NAME = 'Core Set';
 const SET = () => Object.values(DEFS).filter(d => d.type !== 'Mana').map(d => d.id);
+// Expansion Packs: 3 Common, 1 Uncommon and 1 Rare slot that is Legendary 15% of the time.
+const PACK_SLOTS = ['C', 'C', 'C', 'U', 'RL'];
+const LEGENDARY_CHANCE = 0.15;
+const SELL = { C: 5, U: 10, R: 25, L: 60 };
+const LOGIN_LIMIT = { tries: 8, windowMs: 15 * 60 * 1000 };
 const SESSION_DAYS = 60;
 
 export default {
@@ -46,6 +50,7 @@ export class Hub {
       }
       const { user, token } = await this.auth(auth);
       switch (route) {
+        case 'POST /api/password': return json(await this.changePassword(user, body));
         case 'POST /api/logout': await this.store.delete('s:' + token); return json({ ok: true });
         case 'GET /api/me': return json({ account: this.pub(user), config: this.config() });
         case 'POST /api/pack': return json(await this.pack(user));
@@ -68,13 +73,13 @@ export class Hub {
     }
   }
 
-  config() { return { econ: ECON, setName: SET_NAME, setSize: SET().length }; }
+  config() { return { econ: ECON, sell: SELL, legendaryChance: LEGENDARY_CHANCE, release: CURRENT_RELEASE, releaseName: RELEASES[CURRENT_RELEASE].name, setSize: SET().length }; }
 
   // ---------- accounts ----------
   async signup({ name, password, starter }) {
     name = String(name || '').trim();
     if (!/^[A-Za-z0-9_ -]{3,20}$/.test(name)) fail(400, 'Names are 3 to 20 characters: letters, numbers, spaces, - and _.');
-    if (String(password || '').length < 6) fail(400, 'Use a password of at least 6 characters.');
+    if (String(password || '').length < 8) fail(400, 'Use a password of at least 8 characters.');
     if (!DECKS[starter]) fail(400, 'Choose a starter deck.');
     const key = 'u:' + name.toLowerCase();
     if (await this.store.get(key)) fail(409, 'That name is taken. Try another.');
@@ -89,8 +94,17 @@ export class Hub {
     return { token: await this.newSession(user), account: this.pub(user), config: this.config() };
   }
   async login({ name, password }) {
-    const user = await this.store.get('u:' + String(name || '').trim().toLowerCase());
-    if (!user || !safeEqual(await hashPassword(String(password || ''), user.salt), user.hash)) fail(401, 'Wrong name or password.');
+    const key = String(name || '').trim().toLowerCase();
+    const lockKey = 'lock:' + key, now = Date.now();
+    const lock = (await this.store.get(lockKey)) || { n: 0, since: now };
+    if (now - lock.since > LOGIN_LIMIT.windowMs) { lock.n = 0; lock.since = now; }
+    if (lock.n >= LOGIN_LIMIT.tries) fail(429, `Too many wrong passwords. Try again in ${Math.ceil((lock.since + LOGIN_LIMIT.windowMs - now) / 60000)} minutes.`);
+    const user = await this.store.get('u:' + key);
+    if (!user || !safeEqual(await hashPassword(String(password || ''), user.salt), user.hash)) {
+      lock.n++; await this.store.put(lockKey, lock);
+      fail(401, 'Wrong name or password.');
+    }
+    await this.store.delete(lockKey);
     await this.migrate(user);
     return { token: await this.newSession(user), account: this.pub(user), config: this.config() };
   }
@@ -108,6 +122,13 @@ export class Hub {
     await this.migrate(user);
     return { user, token };
   }
+  async changePassword(user, { current, password }) {
+    if (!safeEqual(await hashPassword(String(current || ''), user.salt), user.hash)) fail(400, 'Your current password is wrong.');
+    if (String(password || '').length < 8) fail(400, 'Use a password of at least 8 characters.');
+    user.salt = randHex(16); user.hash = await hashPassword(String(password), user.salt);
+    await this.save(user);
+    return { ok: true };
+  }
   isAdmin(user) {
     const list = String(this.env.ADMIN_USERS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
     return !!user.admin || list.includes(user.name.toLowerCase());
@@ -124,7 +145,7 @@ export class Hub {
     let refund = 0, changed = false;
     user.locked = user.locked || {};
     for (const id of Object.keys(user.collection)) {
-      if (!known.has(id)) { refund += (user.collection[id] - (user.locked[id] || 0)) * ECON.tradeValue; delete user.collection[id]; delete user.locked[id]; changed = true; }
+      if (!known.has(id)) { refund += (user.collection[id] - (user.locked[id] || 0)) * 10; delete user.collection[id]; delete user.locked[id]; changed = true; }
     }
     for (const d of user.decks) for (const id of Object.keys(d.cards)) if (!known.has(id)) { delete d.cards[id]; changed = true; }
     if (refund > 0) { user.sol += refund; user.notice = `Some cards were retired in a game update. You were refunded ${refund} Sol.`; }
@@ -155,9 +176,13 @@ export class Hub {
   async pack(user) {
     if (user.game) fail(409, 'Finish or forfeit your current game first.');
     if (user.sol < ECON.packPrice) fail(400, `A pack costs ${ECON.packPrice} Sol.`);
-    const pool = SET(), cards = [];
-    for (let k = 0; k < ECON.packSize; k++) cards.push(pool[randInt(pool.length)]);
-    const opened = cards.map((id, i) => ({ id, fresh: !user.collection[id] && cards.indexOf(id) === i }));
+    const inRelease = SET().filter(id => DEFS[id].rel === CURRENT_RELEASE), cards = [];
+    for (const slot of PACK_SLOTS) {
+      const rar = slot === 'RL' ? (crypto.getRandomValues(new Uint32Array(1))[0] / 4294967296 < LEGENDARY_CHANCE ? 'L' : 'R') : slot;
+      const pool = inRelease.filter(id => DEFS[id].rar === rar);
+      cards.push(pool[randInt(pool.length)]);
+    }
+    const opened = cards.map((id, i) => ({ id, rar: DEFS[id].rar, fresh: !user.collection[id] && cards.indexOf(id) === i }));
     user.sol -= ECON.packPrice;
     cards.forEach(id => user.collection[id] = (user.collection[id] || 0) + 1);
     user.stats.packs++;
@@ -170,13 +195,13 @@ export class Hub {
       // sell pack copies beyond the 3 a deck can use
       for (const cid of Object.keys(user.collection)) {
         const k = Math.min(this.sellable(user, cid), Math.max(0, user.collection[cid] - ECON.maxCopies));
-        if (k > 0) { user.collection[cid] -= k; gained += k * ECON.tradeValue; }
+        if (k > 0) { user.collection[cid] -= k; gained += k * SELL[DEFS[cid].rar]; }
       }
     } else {
       if (!DEFS[id]) fail(400, 'Unknown card.');
       const k = Math.min(Math.max(1, Math.floor(+n || 1)), this.sellable(user, id));
       if (k <= 0) fail(400, 'Cards from your starter deck can’t be sold.');
-      user.collection[id] -= k; gained = k * ECON.tradeValue;
+      user.collection[id] -= k; gained = k * SELL[DEFS[id].rar];
     }
     for (const cid of Object.keys(user.collection)) if (user.collection[cid] <= 0) delete user.collection[cid];
     user.sol += gained;

@@ -1,5 +1,5 @@
 const fs = require('fs'), vm = require('vm');
-const src = ['cards.js', 'engine.js', 'ai.js', 'replay.js', '../tests/random-player.js'].map(f => fs.readFileSync(__dirname + '/../game/' + f, 'utf8')).join('\n');
+const src = ['cards.js', 'expansion.js', 'engine.js', 'ai.js', 'replay.js', '../tests/random-player.js'].map(f => fs.readFileSync(__dirname + '/../game/' + f, 'utf8')).join('\n');
 const ctx = { console, Math, setTimeout, Promise, Set, Object, Array, String, Error, JSON, Number, Date };
 vm.createContext(ctx);
 vm.runInContext(src + `

@@ -4,7 +4,7 @@ function resetUI() { UI = { sel: null, selWell: false, atk: new Set(), blk: {}, 
 resetUI();
 
 function kwLine(o) {
-  const d = def(o); const names = { flying: 'Flying', swift: 'Swift', guard: 'Guard', drain: 'Drain', venom: 'Venom', ambush: 'Ambush', unblockable: 'Unblockable', illusion: 'Illusion' };
+  const d = def(o); const names = { flying: 'Flying', swift: 'Swift', guard: 'Guard', drain: 'Drain', venom: 'Venom', ambush: 'Ambush', unblockable: 'Unblockable', illusion: 'Illusion', reach: 'Reach', echo: 'Echo' };
   return d.kw.filter(k => names[k] && !(d.text || '').includes(names[k])).map(k => names[k]).join(', ');
 }
 function cardFace(o, big, cls = '') {
@@ -36,7 +36,7 @@ function cardFace(o, big, cls = '') {
   const classes = ['card', big ? 'big' : '', cls, onBoard && inPlay(o) && o.tapped ? 'tapped' : ''].join(' ');
   return `<div class="${classes}" style="--fc:${fc}" data-act="card" data-uid="${o.uid || ''}" data-def="${d.token ? '' : d.id}" tabindex="0">`
     + `<div class="hd"><span class="nm">${esc(d.name)}</span>${d.token || d.type === 'Mana' ? '' : `<span class="cost">${costStr(d)}</span>`}</div>`
-    + `<div class="ty">${d.token ? 'Token ' : ''}${d.type}${kl ? ' · ' + kl : ''}</div>`
+    + `<div class="ty">${d.token ? 'Token ' : ''}${d.type}${kl ? ' · ' + kl : ''}${d.rar && typeof RARITY !== 'undefined' ? `<span class="rar r${d.rar}" title="${RARITY[d.rar]}">${RARITY[d.rar]}</span>` : ''}</div>`
     + `<div class="tx">${esc(d.text || '')}</div>`
     + (b.length ? `<div class="bd">${b.map(x => x.startsWith('<span') ? x : `<span>${x}</span>`).join('')}</div>` : '')
     + st + `</div>`;

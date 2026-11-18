@@ -24,6 +24,9 @@ function hasKw(u, k) {
   const d = def(u);
   if (d.kw.includes(k) || u.tkw.includes(k) || u.pkw.includes(k)) return true;
   if (k === 'venom' && P(u.ctrl).board.some(v => v !== u && v.id === 'poisonmaster_varr')) return true;
+  const me = P(u.ctrl);
+  for (const v of me.board) { const a = v !== u && def(v).aura; if (a && a.kw === k && (!a.when || a.when(u))) return true; }
+  for (const r of me.relics) { const a = def(r).aura; if (a && a.kw === k && (!a.when || a.when(u))) return true; }
   return false;
 }
 
@@ -44,7 +47,12 @@ function stats(u, depth = 0) {
     if (v.id === 'oathbound_guardian') h += 1;
     if (v.id === 'seraph_first_song') p += 1;
   }
-  for (const r of me.relics) if (r.id === 'hymn_of_valor') p += 1;
+  for (const r of me.relics) {
+    if (r.id === 'hymn_of_valor') p += 1;
+    const a = def(r).aura; if (a && (a.p || a.h) && (!a.when || a.when(u))) { p += a.p || 0; h += a.h || 0; }
+  }
+  for (const v of me.board) { const a = v !== u && def(v).aura; if (a && (a.p || a.h) && (!a.when || (depth === 0 ? a.when(u) : false))) { p += a.p || 0; h += a.h || 0; } }
+  if (d.selfMod && depth === 0) { const m = d.selfMod(u, me); p += m.p || 0; h += m.h || 0; }
   if (me.fac === 'Oathsong' && me.hero.awakened) h += 1;
   return { p, h };
 }
@@ -52,7 +60,7 @@ function stats(u, depth = 0) {
 // ---------- mana ----------
 function costOf(p, d) {
   let g = d.g;
-  if (d.type === 'Reaction') g = Math.max(0, g - P(p).relics.filter(r => r.id === 'compass_far_roads').length);
+  if (d.type === 'Reaction') g = Math.max(0, g - P(p).relics.filter(r => r.id === 'compass_far_roads').length - P(p).board.filter(u => def(u).cheapReactions).length);
   return { g, pips: d.pips, fac: d.fac };
 }
 function pool(p, ex) { return P(p).well.filter(c => !c.tapped && c.uid !== ex); }
@@ -138,6 +146,7 @@ async function dmgPlayer(i, n, src) {
   if (src.unit) {
     if (hasKw(src.unit, 'drain')) gainLife(src.unit.ctrl, n);
     if (src.unit.id === 'alley_cutpurse' && P(i).life > 0) await markPick(src.unit.ctrl);
+    if (def(src.unit).onHitFace && P(i).life > 0) await def(src.unit).onHitFace(src.unit.ctrl, src.unit, n);
   }
 }
 async function hitAny(t, n, src) { if (!t) return; if (t.p != null) await dmgPlayer(t.p, n, src); else if (t.u) dmgUnit(t.u, n, src); }
@@ -188,6 +197,7 @@ function topToWell(p, n) {
   if (k) log(`${esc(pl.name)} puts the top ${k} card${k > 1 ? 's' : ''} of their deck into their Well.`);
 }
 function leave(x) {
+  if (G.combat) G.combat.list = G.combat.list.filter(e => e.a !== x.uid);
   for (const pl of G.players) {
     let i = pl.board.indexOf(x); if (i >= 0) pl.board.splice(i, 1);
     i = pl.relics.indexOf(x); if (i >= 0) pl.relics.splice(i, 1);
@@ -200,13 +210,15 @@ function unitToWell(u) { const c = leave(u); if (c) P(u.owner).well.push(c); }
 function relicToWell(r) { const c = leave(r); if (c) P(r.owner).well.push(c); log(`${nm(def(r).name)} finishes and goes into the Well.`); }
 async function destroy(u) {
   if (!inPlay(u)) return;
-  const marker = O(u.ctrl);
+  const marker = O(u.ctrl), echo = hasKw(u, 'echo') && !u.echoed;
   const c = leave(u);
   log(`${nm(def(u).name)} is destroyed.`);
-  if (c) P(u.owner).grave.push(c);
+  if (c && echo) { c.echoed = true; P(u.owner).hand.push(c); log(`${nm(def(u).name)} returns to its owner's hand (Echo).`); }
+  else if (c) P(u.owner).grave.push(c);
+  if (def(u).onDeath) await def(u).onDeath(u.ctrl, u);
   if (u.marked) {
     P(marker).markedKills++;
-    for (const r of P(marker).relics) if (r.id === 'thieves_guild_hall') gainLife(marker, 2);
+    for (const r of P(marker).relics) { if (r.id === 'thieves_guild_hall') gainLife(marker, 2); if (def(r).onMarkedDeath) await def(r).onMarkedDeath(marker, u); }
     if (P(marker).fac === 'Shadowmarked' && P(marker).hero.awakened) await draw(marker, 1);
   }
 }
@@ -279,11 +291,12 @@ function canAttack(u) { return !u.tapped && (!u.sick || hasKw(u, 'swift')) && !i
 function canBlock(b, a) {
   if (b.tapped || isBound(b)) return false;
   if (hasKw(a, 'unblockable')) return false;
-  if (hasKw(a, 'flying') && !hasKw(b, 'flying')) return false;
-  if (a.id === 'siegebreaker_ogre' && stats(b).p <= 2) return false;
+  if (hasKw(b, 'noblock')) return false;
+  if (hasKw(a, 'flying') && !hasKw(b, 'flying') && !hasKw(b, 'reach')) return false;
+  if ((a.id === 'siegebreaker_ogre' || def(a).minBlockPower) && stats(b).p < (def(a).minBlockPower || 3)) return false;
   return true;
 }
-function wellLimit(p) { const pl = P(p); return 1 + (pl.fac === 'Wildborn' && pl.hero.awakened ? 1 : 0); }
+function wellLimit(p) { const pl = P(p); return 1 + (pl.fac === 'Wildborn' && pl.hero.awakened ? 1 : 0) + (pl.board.some(u => def(u).extraWell) ? 1 : 0); }
 function curPower(p) { const pl = P(p), h = HEROES[pl.fac]; return pl.hero.awakened && h.awPower ? h.awPower : h.power; }
 function legalMain(p) {
   const pl = P(p), r = { cast: [], well: [], wellcast: [], power: false, attack: false };
@@ -315,9 +328,11 @@ function removeFromZone(p, c) {
 async function spellTriggers(p, d) {
   if (!isSpellish(d)) return;
   for (const u of [...P(p).board]) if (u.id === 'runecarver_adept' && inPlay(u)) await inscribe(p, 1);
+  for (const u of [...P(p).board]) if (def(u).onSpell && inPlay(u)) await def(u).onSpell(p, u, d);
   if (d.type === 'Reaction') {
     P(p).reactionsCast++;
     for (const u of P(p).board) if (u.id === 'wandering_cartographer') await draw(p, 1);
+    for (const u of [...P(p).board]) if (def(u).onReaction && inPlay(u)) await def(u).onReaction(p, u, d);
   }
 }
 async function castCard(p, c, o = {}) {

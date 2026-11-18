@@ -29,17 +29,30 @@ To make another player an admin, add their name to `ADMIN_USERS` in `wrangler.to
 | Starting Sol | 500 |
 | Starter Deck | 500 Sol (every new account buys one when signing up, so it starts with 0 Sol); more can be bought in the Shop |
 | Sol for a win against the computer | 20 |
-| Pack price | 100 Sol for 5 random cards from the Core Set |
-| Selling a card | 5 Sol each, only for cards opened in packs |
+| Expansion Pack | 100 Sol for 5 cards from the current Release: 3 Common, 1 Uncommon and 1 Rare (Legendary 15% of the time) |
+| Selling a card | 5 Sol (Common), 10 (Uncommon), 25 (Rare), 60 (Legendary); only cards opened in packs |
 | Starter Deck cards | Can never be sold, so every player always has a playable deck |
 
-These numbers live in `ECON` at the top of `src/worker.js`.
+These numbers live at the top of `src/worker.js` (`ECON`, `PACK_SLOTS`, `LEGENDARY_CHANCE`, `SELL`).
+
+## Releases
+
+Every card so far belongs to the first Release, **Intro to Ahrivaea**: the 120 Starter Deck cards plus 180 cards found only in Expansion Packs (30 per faction). Each faction's 50 cards are 20 Common, 17 Uncommon, 10 Rare and 3 Legendary.
+
+To add a second Release later: add its cards in a new file in `game/` with `rel: 'yourid'`, add it to `RELEASES` in `game/expansion.js`, and set `CURRENT_RELEASE` to it. Packs then sell the new Release, and everyone's existing cards stay as they are.
+
+## Security
+
+- Passwords are at least 8 characters and are stored only as salted PBKDF2 hashes.
+- After 8 wrong passwords, logins to that account are paused for 15 minutes.
+- Players can change their password from the Home screen.
 
 ## Changing the game
 
 The source code is in `game/`:
 
-- `cards.js`: every card, hero and starter deck
+- `cards.js`: the Starter Deck cards, heroes and starter decks
+- `expansion.js`: the Expansion Pack cards, rarities and Releases
 - `engine.js`: the rules
 - `ai.js`: the computer opponent
 - `replay.js`: how the server stores and replays games

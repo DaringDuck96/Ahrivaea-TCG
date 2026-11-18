@@ -36,19 +36,21 @@ function aiCastScore(p, c, stage) {
   const lifeO = opp.life;
   const attackersReady = pl.board.filter(canAttack).length;
   const removal = (score) => score >= 2.5 ? score + 1 : 0;
-  switch (d.id) {
-    case 'firebrand_bolt': return lifeO <= 2 ? 100 : removal(bestKill(p, 2, true));
-    case 'warpath': return removal(bestKill(p, 4, true));
+  const N = d.dmgFn ? d.dmgFn(p) : d.dmg;
+  const bonus = d.aiBonus || 0;
+  switch (d.aiAs || d.id) {
+    case 'firebrand_bolt': { const n = N != null ? N : 2; return lifeO <= n ? 100 : removal(bestKill(p, n, true)) + (n >= 3 && lifeO <= n + 4 ? 2 : 0); }
+    case 'warpath': return removal(bestKill(p, N != null ? N : 4, true));
     case 'quillstorm': return removal(bestKill(p, runeTotal(p), true));
-    case 'flame_volley': { const v = enemyUnits(p).filter(u => remH(u) <= 1).reduce((s, u) => s + uval(u), 0); return v >= 3 ? v : 0; }
-    case 'kiss_of_the_viper': { const b = bestEnemy(p, u => mvOf(u) <= 3); return b && uval(b) >= 3 ? uval(b) + 1 : 0; }
-    case 'assassination': { const b = bestEnemy(p); return b && uval(b) >= 4.5 ? uval(b) + 1 : 0; }
+    case 'flame_volley': { const n = N != null ? N : 1; const v = enemyUnits(p).filter(u => remH(u) <= n).reduce((s, u) => s + uval(u), 0) + bonus; return v >= 3 ? v : 0; }
+    case 'kiss_of_the_viper': { const b = bestEnemy(p, d.aiF || (u => mvOf(u) <= 3)); return b && uval(b) >= 3 ? uval(b) + 1 : 0; }
+    case 'assassination': { const b = bestEnemy(p, d.aiF || (() => true)); return b && uval(b) >= 4.5 ? uval(b) + 1 - (d.id === 'blood_price' && stats(b).p >= pl.life - 2 ? 99 : 0) : 0; }
     case 'judgment_light': { const b = bestEnemy(p, u => stats(u).p >= 4); return b ? uval(b) + 1 : 0; }
-    case 'erase_from_history': { const b = bestEnemy(p, u => stats(u).p <= 4); return b && uval(b) >= 4 ? uval(b) : 0; }
+    case 'erase_from_history': { const b = bestEnemy(p, d.aiF || (u => stats(u).p <= 4)); return b && uval(b) >= 4 ? uval(b) : 0; }
     case 'wrath_of_dawn': { const e = enemyUnits(p).filter(u => stats(u).p >= 3).reduce((s, u) => s + uval(u), 0), m = myUnits(p).filter(u => stats(u).p >= 3).reduce((s, u) => s + uval(u), 0); return e - m >= 5 ? e - m : 0; }
     case 'toxic_fog': { const e = enemyUnits(p).filter(u => remH(u) <= 2).reduce((s, u) => s + uval(u), 0), m = myUnits(p).filter(u => remH(u) <= 2).reduce((s, u) => s + uval(u), 0); return e - m >= 3 ? e - m : 0; }
     case 'storm_of_leaving': { const v = enemyUnits(p).filter(u => mvOf(u) <= 3).reduce((s, u) => s + (u.token ? 3 : mvOf(u) * 0.8), 0); return v >= 4 ? v : 0; }
-    case 'gust_of_return': { const b = maxBy(enemyUnits(p).filter(u => canTargetSpell(p, u)), u => u.token ? 4 : mvOf(u)); if (!b) return 0; const v = b.token ? 4 : mvOf(b) * 0.8; return v >= 3 ? v : 0; }
+    case 'gust_of_return': { const b = maxBy(enemyUnits(p).filter(u => canTargetSpell(p, u)), u => u.token ? 4 : mvOf(u)); if (!b) return 0; const v = (b.token ? 4 : mvOf(b) * 0.8) + bonus; return v >= 3 ? v : 0; }
     case 'tidal_displacement': { const s = enemyUnits(p).filter(u => canTargetSpell(p, u)).map(u => u.token ? 4 : mvOf(u) * 0.8).sort((a, b) => b - a); const v = (s[0] || 0) + (s[1] || 0); return v >= 4.5 ? v : 0; }
     case 'hunters_pounce': { const mine = maxBy(myUnits(p).filter(u => canTargetSpell(p, u)), u => stats(u).p); if (!mine) return 0; const v = bestKill(p, stats(mine).p, true); return v >= 2.5 ? v + 1 : 0; }
     case 'poisoned_dart': { const v = bestKill(p, 1, true); if (v >= 1.5) return v + 1; return !pre && enemyUnits(p).some(u => !u.marked) && pl.board.concat(pl.relics).some(x => ['nightblade_stalker', 'master_of_whispers', 'thieves_guild_hall'].includes(x.id)) ? 1.2 : 0; }
@@ -70,6 +72,23 @@ function aiCastScore(p, c, stage) {
     case 'hired_thug': if (pl.life <= 5) return 0; break;
     case 'ravager_captain': if (!enemyUnits(p).length) return pre ? 0 : 2; break;
   }
+  const live0 = myUnits(p).length, sum = (list) => list.reduce((s, u) => s + uval(u), 0);
+  switch (d.ai) {
+    case 'pump': return pre && pl.board.some(u => canAttack(u) || u.sick) ? 2.5 : 0;
+    case 'counter': return live0 ? 2.2 : 0;
+    case 'buffAll': return /this turn/.test(d.text) ? (pre && attackersReady >= 2 ? 2 + attackersReady : 0) : (live0 >= 2 ? (d.aiVal || 0) + live0 * 1.5 : 0);
+    case 'draw': return pre ? 0 : (d.aiVal || 2.5);
+    case 'tokens': return pre ? 0 : (d.aiVal || 3);
+    case 'tokensPerEnemy': return !pre && enemyUnits(p).length >= 2 ? enemyUnits(p).length * 1.8 : 0;
+    case 'ramp': return !pre && pl.well.length < 7 ? (d.aiVal || 2) : 0;
+    case 'tap': { const b = bestEnemy(p, u => !u.tapped); return b && uval(b) >= 3 ? uval(b) * 0.6 : 0; }
+    case 'discard': return pre ? 0 : 2.5;
+    case 'gain': return pre ? 0 : (pl.life < 12 ? 4 : 1);
+    case 'massBounce': { const v = sum(enemyUnits(p).filter(u => mvOf(u) <= 2)) - sum(myUnits(p).filter(u => mvOf(u) <= 2)); return v >= 3 ? v : 0; }
+    case 'wipeEnemy': { const v = sum(enemyUnits(p)); return v >= 6 ? v : 0; }
+    case 'wipeAll': { const v = sum(enemyUnits(p)) - sum(myUnits(p)); return v >= 6 ? v : 0; }
+    case 'wipeMarked': { const v = sum(enemyUnits(p).filter(u => u.marked)) - sum(myUnits(p).filter(u => u.marked)); return v >= 4 ? v : 0; }
+  }
   if (d.type === 'Relic') return pre ? (d.id === 'warcallers_horn' || d.id === 'hymn_of_valor' ? 3.5 : 0) : 3.5 + (d.id === 'hymn_of_valor' ? pl.board.length * 0.5 : 0);
   if (d.type === 'Unit') {
     const swift = d.kw.includes('swift') || (pl.relics.some(r => r.id === 'warcallers_horn') && pl.lastUnitTurn !== G.turn);
@@ -80,6 +99,7 @@ function aiCastScore(p, c, stage) {
     }
     return 3 + d.mv * 1.1 + dval(d) * 0.2;
   }
+  if (d.type === 'Spell') return pre ? 0 : 2;
   return 0;
 }
 function aiBestCast(p, L, stage) {
@@ -205,7 +225,7 @@ function aiReactScore(p, c, kind) {
     const sd = x.d, targetsMine = tUnits(x).filter(u => u.ctrl === p);
     const hurt = targetsMine.length ? Math.max(...targetsMine.map(uval)) : 0;
     const worth = Math.max(hurt, sd.type === 'Unit' ? dval(sd) * 0.6 : sd.mv * 1.1);
-    switch (d.id) {
+    switch (d.aiAs || d.id) {
       case 'counterwind': return worth >= 4.5 ? worth : 0;
       case 'second_thoughts': return worth >= 2.5 ? worth : 0;
       case 'unwritten_answer': { const left = pool(opp).length; return left < 2 && worth >= 3.5 ? worth : 0; }
@@ -214,15 +234,21 @@ function aiReactScore(p, c, kind) {
     return 0;
   }
   const best = (list, f) => { const u = maxBy(list.filter(u => canTargetSpell(p, u)), f); if (u) G.aiPlan = [u.uid]; return u; };
-  switch (d.id) {
-    case 'sudden_riposte': { const u = best(atk.filter(u => remH(u) <= 2), uval); return u ? uval(u) + 0.5 : (danger ? (best(atk, powerOf) ? danger : 0) : 0); }
-    case 'trapdoor': { const u = best(atk.filter(u => stats(u).p <= 2), uval); return u ? uval(u) + 0.5 + danger * 0.3 : 0; }
+  const N = d.dmgFn ? d.dmgFn(p) : (d.dmg != null ? d.dmg : 2);
+  switch (d.ai) {
+    case 'sweepAttackers': { const v = atk.filter(u => remH(u) <= N).reduce((s, u) => s + uval(u), 0); return v >= 2.5 ? v + danger : 0; }
+    case 'fogAll': return danger >= 2 ? incoming * 0.8 + danger : 0;
+    case 'killAllAttackers': { const v = atk.reduce((s, u) => s + uval(u), 0); return v >= 5 || danger >= 6 ? v + danger : 0; }
+  }
+  switch (d.aiAs || d.id) {
+    case 'sudden_riposte': { const u = best(atk.filter(u => remH(u) <= N), uval); return u ? uval(u) + 0.5 : (danger ? (best(atk, powerOf) ? danger : 0) : 0); }
+    case 'trapdoor': { const u = best(atk.filter(d.aiF || (u => stats(u).p <= 2)), uval); return u ? uval(u) + 0.5 + danger * 0.3 - (d.id === 'ambush_strike' ? 3 : 0) : 0; }
     case 'snapping_vines': { const u = best(atk.filter(u => hasKw(u, 'flying')), uval); return u ? uval(u) + 1 : 0; }
-    case 'misdirect': { const u = best(atk, u => u.token ? 5 : mvOf(u) + powerOf(u) * 0.3); return u ? (u.token ? 4 : mvOf(u) * 0.7) + danger : 0; }
+    case 'misdirect': { const u = best(atk.filter(d.aiF || (() => true)), u => u.token ? 5 : mvOf(u) + powerOf(u) * 0.3); return u ? (u.token ? 4 : mvOf(u) * 0.7) + danger : 0; }
     case 'smoke_bomb': { const u = best(atk, powerOf); return u && (powerOf(u) >= 4 || danger) ? powerOf(u) * 0.8 + danger : 0; }
     case 'glyph_of_hesitation': { const u = best(atk, powerOf); return u && (powerOf(u) >= 4 || danger) ? 2 + danger * 0.5 : 0; }
     case 'stand_and_fight': case 'sudden_bloom': {
-      const bp = d.id === 'stand_and_fight' ? 2 : 2, bh = d.id === 'stand_and_fight' ? 1 : 2;
+      const bp = d.bp != null ? d.bp : 2, bh = d.bh != null ? d.bh : (d.id === 'stand_and_fight' ? 1 : 2);
       let bv = 0, pick = null;
       for (const b of me.board.filter(b => !b.tapped && !isBound(b))) for (const a of atk) {
         if (!canBlock(b, a)) continue;
@@ -235,6 +261,7 @@ function aiReactScore(p, c, kind) {
     }
     case 'last_stand': return me.board.filter(b => !b.tapped).length >= 2 && atk.length ? 3 + danger : 0;
   }
+  if (d.id === 'last_stand' || d.aiAs === 'last_stand') return me.board.filter(b => !b.tapped).length >= 2 && atk.length ? 3 + danger : 0;
   if (d.type === 'Unit' && d.kw.includes('ambush')) {
     let bv = 0;
     for (const a of atk) {
@@ -251,6 +278,7 @@ function aiReactScore(p, c, kind) {
 }
 
 // ---------- targeting ----------
+let AI_NAMES = null;
 const AI_TARGET = {
   harm: { 'Firebrand Bolt': 2, 'Emberhorn Dragon': 2, 'Ravager Captain': 2, 'Sudden Riposte': 2, 'Nightblade Stalker': 2, 'Nyra Vesk': 2, 'Warpath': 4, 'Poisoned Dart': 1 },
   destroy: ['Kiss of the Viper', 'Assassination', 'Judgment Light', 'Master of Whispers', 'Trapdoor', 'Snapping Vines', 'Tome of Binding', 'Erase from History', 'Quillstorm', 'Thunderhead Roc'],
@@ -263,7 +291,11 @@ function aiPick(q) {
   const cands = q.uids.map(findUid).filter(Boolean);
   const enemies = cands.filter(u => u.ctrl === o && u.board !== undefined || (u.ctrl === o));
   const mine = cands.filter(u => u.ctrl === p);
-  const name = q.prompt.split(':')[0];
+  const name0 = q.prompt.split(':')[0];
+  if (!AI_NAMES) { AI_NAMES = {}; for (const x of Object.values(DEFS)) AI_NAMES[x.name] = x; }
+  const dd = AI_NAMES[name0];
+  const name = dd && dd.aiAs ? DEFS[dd.aiAs].name : name0;
+  const dm = q.prompt.match(/deal (\d+) damage/);
   // a target chosen in advance when the card was played
   if (G.aiPlan && G.aiPlan.length) { const t = G.aiPlan.find(id => q.uids.includes(id)); if (t != null) { G.aiPlan = G.aiPlan.filter(x => x !== t); return { uid: t }; } }
   if (name.startsWith('Guard')) {
@@ -275,6 +307,7 @@ function aiPick(q) {
     return { uid: g.uid };
   }
   if (name === 'Inscribe') { const r = maxBy(mine, u => (def(u).runeP || def(u).runePH ? 5 : 0) + (u.chapter ? -2 : 0)); return r ? { uid: r.uid } : (q.optional ? null : { uid: q.uids[0] }); }
+  if (name0.startsWith("Navigator")) return null;
   if (name === "Hunter's Pounce") {
     if (q.prompt.includes('your unit')) { const u = maxBy(mine, x => stats(x).p); G.aiPounce = u ? stats(u).p : 0; return { uid: u.uid }; }
     const k = maxBy(enemies.filter(u => remH(u) <= (G.aiPounce || 0)), uval) || maxBy(enemies, uval);
@@ -285,8 +318,8 @@ function aiPick(q) {
     if (t) return { uid: t.uid };
     return q.optional ? null : { uid: minBy(mine, uval).uid };
   }
-  const harm = AI_TARGET.harm[name] || (name === 'Quillstorm' ? runeTotal(p) : null);
-  if (harm != null && !AI_TARGET.destroy.includes(name)) {
+  const harm = dm ? +dm[1] : (AI_TARGET.harm[name] || (name === 'Quillstorm' ? runeTotal(p) : null));
+  if (harm != null && !AI_TARGET.destroy.includes(name) && !(dd && dd.aiT === 'destroy')) {
     if (q.players && q.players.includes(o) && P(o).life <= harm) return { p: o };
     const k = maxBy(enemies.filter(u => remH(u) <= harm), uval);
     if (k) return { uid: k.uid };
@@ -295,7 +328,7 @@ function aiPick(q) {
     if (q.optional) return null;
     const m = minBy(mine, uval); return m ? { uid: m.uid } : (q.players && q.players.length ? { p: o } : null);
   }
-  if (AI_TARGET.own.includes(name)) {
+  if (AI_TARGET.own.includes(name) || (dd && (dd.ai === 'pump' || dd.ai === 'counter')) || /(a|another) unit you control/.test(q.prompt)) {
     const m = maxBy(mine, u => (u.attacking ? 3 : 0) + (u.sick && name === 'Korga' ? 4 : 0) + powerOf(u) + uval(u) * 0.3);
     if (m) return { uid: m.uid };
     if (q.optional) return null;
@@ -349,6 +382,7 @@ function aiMain(q) {
 function aiCards(q) {
   const p = q.who, pl = P(p), pr = q.prompt;
   let ranked;
+  if (pr.startsWith("Navigator")) { const c = q.cards[0]; return def(c).type === 'Mana' && pl.well.length >= 6 ? [c] : []; }
   if (pr.startsWith('Discard')) ranked = [...q.cards].sort((a, b) => aiKeepScore(p, a) - aiKeepScore(p, b));
   else if (pr.includes('into your Well')) {
     ranked = [...q.cards].sort((a, b) => aiKeepScore(p, a) - aiKeepScore(p, b));

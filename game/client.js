@@ -16,7 +16,7 @@ function toast(msg) { TOAST = msg; render(); setTimeout(() => { if (TOAST === ms
 async function busy(fn) {
   if (BUSY) return; BUSY = true; render();
   try { await fn(); } catch (e) { TOAST = e.message; setTimeout(() => { TOAST = null; render(); }, 5000); }
-  finally { BUSY = false; render(); }
+  finally { BUSY = false; render(); if (TOAST) { const m = TOAST; setTimeout(() => { if (TOAST === m) { TOAST = null; render(); } }, 4500); } }
 }
 
 async function initAccount() {
@@ -96,7 +96,7 @@ function authHTML() {
   ${mode === 'signup' ? `<div class="pricebox"><div><b>${ECONF().startSol} Sol</b><span>Every new account gets</span></div><div class="op">−</div><div><b>${ECONF().starterPrice} Sol</b><span>Your first Starter Deck costs</span></div><div class="op">=</div><div><b>${ECONF().startSol - ECONF().starterPrice} Sol</b><span>Left after you start</span></div></div><p class="sub small">Win games to earn ${ECONF().winSol} Sol each, then spend it on packs and more Starter Decks in the Shop.</p>` : ''}
   <div class="authtabs"><button class="${mode === 'login' ? '' : 'ghost'}" data-act="authmode" data-m="login">Log in</button><button class="${mode === 'signup' ? '' : 'ghost'}" data-act="authmode" data-m="signup">Create account</button></div>
   <form class="seat" data-form="${mode}"><label for="accname">Player name</label><input id="accname" autocomplete="username" maxlength="20" value="${esc(VIEW.signName || '')}">
-  <label for="accpass">Password</label><input id="accpass" type="password" autocomplete="${mode === 'login' ? 'current-password' : 'new-password'}">
+  <label for="accpass">Password${mode === 'signup' ? ' (at least 8 characters)' : ''}</label><input id="accpass" type="password" autocomplete="${mode === 'login' ? 'current-password' : 'new-password'}" ${mode === 'signup' ? 'minlength="8"' : ''}>
   ${mode === 'signup' ? `<label>Choose your Starter Deck (${ECONF().starterPrice} Sol)</label><div class="facpick">${facs.map(f => `<button type="button" class="facbtn ${f === pick ? 'on' : ''}" style="--fc:${FAC[f].c}" data-act="signfac" data-f="${f}"><b>${f}</b><span>${esc(HEROES[f].name)}</span><em>${ECONF().starterPrice} Sol</em></button>`).join('')}</div><div class="hp">${heroPreview(pick)} You get 40 cards and a ready-to-play deck. Starter cards can never be sold, so you always keep a playable deck.</div>` : ''}
   <button type="submit" ${BUSY ? 'disabled' : ''}>${mode === 'login' ? 'Log in' : `Create account and buy the ${pick} Starter Deck`}</button></form></div>`;
 }
@@ -111,7 +111,9 @@ function homeHTML() {
     <button class="tile" data-act="nav" data-to="collection"><b>Collection</b><span>${n} cards, ${uniq} of ${SETIDS().length} different.</span></button>
     <button class="tile" data-act="nav" data-to="shop"><b>Shop</b><span>Packs: ${E.packSize} random cards for ${E.packPrice} Sol. Starter Decks: ${E.starterPrice} Sol.</span></button>
   </div>
-  <p class="record">Record: ${ACC.stats.wins} wins, ${ACC.stats.losses} losses, ${ACC.stats.packs} packs opened.</p></div>`;
+  <p class="record">Record: ${ACC.stats.wins} wins, ${ACC.stats.losses} losses, ${ACC.stats.packs} packs opened.</p>
+  <div class="acct"><button class="ghost mini" data-act="pwtoggle">${VIEW.pwOpen ? 'Close' : 'Change password'}</button>
+  ${VIEW.pwOpen ? `<div class="pwform"><label for="pwcur">Current password</label><input id="pwcur" type="password" autocomplete="current-password"><label for="pwnew">New password (at least 8 characters)</label><input id="pwnew" type="password" autocomplete="new-password"><button data-act="changepw" ${BUSY ? 'disabled' : ''}>Save new password</button></div>` : ''}</div></div>`;
 }
 function playHTML() {
   const ready = ACC.decks.filter(d => !deckProblems(d).length), facs = Object.keys(HEROES), opp = VIEW.oppFac || 'Lorebound';
@@ -124,47 +126,91 @@ function playHTML() {
   </div>
   <button data-act="start" ${BUSY ? 'disabled' : ''}>Start game</button></div>`;
 }
+const RAR_RANK = { C: 0, U: 1, R: 2, L: 3 };
+const sellOf = id => ((CONF && CONF.sell) || { C: 5, U: 10, R: 25, L: 60 })[DEFS[id].rar] || 5;
+function curveOf(cards) { const c = [0, 0, 0, 0, 0, 0]; for (const [id, k] of Object.entries(cards)) c[Math.min(6, Math.max(1, DEFS[id].mv)) - 1] += k; return c; }
+function curveHTML(cards) {
+  const c = curveOf(cards), m = Math.max(1, ...c);
+  return `<div class="curve" aria-label="Mana curve">${c.map((n, i) => `<div class="bar"><span class="n">${n || ''}</span><span class="fill" style="height:${Math.round(n / m * 100)}%"></span><span class="lbl">${i === 5 ? '6+' : i + 1}</span></div>`).join('')}</div>`;
+}
 function decksHTML() {
   const E = ECONF();
-  return `<div class="hub"><h1>Your decks</h1><p class="sub">A deck is a hero plus exactly ${E.deckSize} cards of that hero's faction (at most ${E.maxCopies} of each). 15 Mana cards are added for free.</p>
-  <div class="decklist">${ACC.decks.map(d => { const pr = deckProblems(d); return `<div class="deckrow" style="--fc:${FAC[d.fac].c}"><div><b>${esc(d.name)}</b><span>${esc(HEROES[d.fac].name)}, ${d.fac}. ${pr.length ? 'Not ready: ' + esc(pr.join(', ')) + '.' : 'Ready to play.'}</span></div><div class="acts"><button class="ghost" data-act="editdeck" data-id="${d.id}">Edit</button><button class="ghost" data-act="dupdeck" data-id="${d.id}">Copy</button><button class="ghost" data-act="deldeck" data-id="${d.id}">Delete</button></div></div>`; }).join('') || '<p class="muted">No decks yet.</p>'}</div>
-  <h2 class="h2">Build a new deck</h2><div class="facpick">${Object.keys(HEROES).map(f => `<button class="facbtn" style="--fc:${FAC[f].c}" data-act="newdeck" data-f="${f}"><b>${f}</b><span>${esc(HEROES[f].name)}</span></button>`).join('')}</div>
+  return `<div class="hub wide"><h1>Decks</h1><p class="sub">Click a deck to edit it. A deck is a hero plus ${E.deckSize} cards from that hero's faction; 15 Mana cards are added for free.</p>
+  <div class="deckgrid"><button class="decktile newtile" data-act="newdeck"><b>+</b><span>New deck</span></button>
+  ${ACC.decks.map(d => { const pr = deckProblems(d); return `<div class="decktile" style="--fc:${FAC[d.fac].c}"><button class="dtmain" data-act="editdeck" data-id="${d.id}"><span class="dthero">${esc(HEROES[d.fac].name)}</span><b>${esc(d.name)}</b><span class="dtstat ${pr.length ? 'bad' : 'ok'}">${pr.length ? 'Not ready: ' + esc(pr[0]) : 'Ready to play'}</span>${curveHTML(d.cards)}</button><div class="dtacts"><button class="mini ghost" data-act="dupdeck" data-id="${d.id}">Copy</button><button class="mini ghost" data-act="deldeck" data-id="${d.id}">Delete</button></div></div>`; }).join('')}</div>
   ${VIEW.confirmDel ? `<div class="modal"><div class="box"><h2>Delete this deck?</h2><p>${esc((ACC.decks.find(d => d.id === VIEW.confirmDel) || {}).name || '')} will be removed. Your cards stay in your collection.</p><button data-act="deldeckyes">Delete deck</button> <button class="ghost" data-act="deldeckno">Keep it</button></div></div>` : ''}</div>`;
 }
+function builderPool() {
+  const d = VIEW.draft, f = VIEW.f, q = (f.q || '').toLowerCase();
+  return SETIDS().filter(id => {
+    const x = DEFS[id];
+    if (d.fac ? x.fac !== d.fac : (f.fac && x.fac !== f.fac)) return false;
+    if (!f.unowned && !owned(id)) return false;
+    if (f.type && x.type !== f.type) return false;
+    if (f.cost && (f.cost === 6 ? x.mv < 6 : x.mv !== f.cost)) return false;
+    if (f.rar && x.rar !== f.rar) return false;
+    if (q && !(x.name.toLowerCase().includes(q) || (x.text || '').toLowerCase().includes(q))) return false;
+    return true;
+  }).sort((a, b) => DEFS[a].mv - DEFS[b].mv || DEFS[a].name.localeCompare(DEFS[b].name));
+}
+function canAdd(id) { const d = VIEW.draft, E = ECONF(), k = d.cards[id] || 0; return owned(id) > k && k < E.maxCopies && deckCount(d) < E.deckSize && (!d.fac || DEFS[id].fac === d.fac); }
 function editHTML() {
   const d = VIEW.draft, E = ECONF(); if (!d) return decksHTML();
-  const pool = SETIDS().filter(id => DEFS[id].fac === d.fac).sort((a, b) => DEFS[a].mv - DEFS[b].mv || DEFS[a].name.localeCompare(DEFS[b].name));
-  const n = deckCount(d), pr = deckProblems(d);
+  const f = VIEW.f || (VIEW.f = {});
+  const n = deckCount(d), pr = deckProblems(d), pool = builderPool();
+  const chip = (key, val, label, extra = '') => `<button class="chip ${f[key] === val ? 'on' : ''}" data-act="bf" data-k="${key}" data-v="${val === undefined ? '' : val}" ${extra}>${label}</button>`;
   const list = Object.entries(d.cards).filter(([, k]) => k > 0).sort((a, b) => DEFS[a[0]].mv - DEFS[b[0]].mv || DEFS[a[0]].name.localeCompare(DEFS[b[0]].name));
-  return `<div class="hub wide"><div class="edtop"><input id="deckname" value="${esc(d.name)}" maxlength="40" aria-label="Deck name"><span class="count ${n === E.deckSize ? 'ok' : ''}">${n}/${E.deckSize}</span><button data-act="savedeck" ${BUSY ? 'disabled' : ''}>Save deck</button><button class="ghost" data-act="nav" data-to="decks">Cancel</button></div>
-  <p class="sub small">${esc(HEROES[d.fac].name)}, ${d.fac}. Click a card to add a copy; click a line in the deck list to remove one. ${pr.length ? 'Not ready yet: ' + esc(pr.join(', ')) + '.' : 'This deck is ready to play.'}</p>
-  <div class="editor"><div class="pool">${pool.map(id => { const have = owned(id), inD = d.cards[id] || 0; const can = have > inD && inD < E.maxCopies && n < E.deckSize;
-    return `<div class="pcard ${have ? '' : 'none'}">${cardFace({ id }, false, can ? 'play' : '').replace('data-act="card"', `data-act="addcard" data-id="${id}"`)}<div class="own">${have ? `Own ${have} · In deck ${inD}` : 'Not owned'}</div></div>`; }).join('')}</div>
-  <aside class="dlist"><h3>Deck list</h3>${list.length ? list.map(([id, k]) => `<button class="dline" style="--fc:${FAC[DEFS[id].fac].c}" data-act="remcard" data-id="${id}"><span>${k}×</span> ${esc(DEFS[id].name)} <em>${costStr(DEFS[id])}</em></button>`).join('') : '<p class="muted">Empty. Click cards on the left to add them.</p>'}<div class="dline mana">15× ${esc(MANA_NAMES[d.fac])} (free)</div></aside></div></div>`;
+  const pips = id => { const have = owned(id), inD = d.cards[id] || 0; let s = ''; for (let i = 0; i < E.maxCopies; i++) s += `<i class="${i < inD ? 'in' : i < have ? 'own' : ''}"></i>`; return s + (have > E.maxCopies ? `<em>+${have - E.maxCopies}</em>` : ''); };
+  return `<div class="builder">
+  <section class="bmain">
+    <div class="bfilters">
+      <input id="bsearch" type="search" placeholder="Search names and rules text" value="${esc(f.q || '')}" aria-label="Search cards">
+      ${d.fac ? `<span class="facnote" style="--fc:${FAC[d.fac].c}">${d.fac} cards only</span>` : `<div class="chips">${chip('fac', undefined, 'All factions')}${Object.keys(HEROES).map(x => chip('fac', x, x, `style="--fc:${FAC[x].c}"`)).join('')}</div>`}
+      <div class="chips">${chip('cost', undefined, 'Any cost')}${[1, 2, 3, 4, 5, 6].map(x => chip('cost', x, x === 6 ? '6+' : String(x))).join('')}</div>
+      <div class="chips">${chip('type', undefined, 'All types')}${['Unit', 'Spell', 'Relic', 'Reaction'].map(x => chip('type', x, x + 's')).join('')}</div>
+      <div class="chips">${chip('rar', undefined, 'Any rarity')}${['C', 'U', 'R', 'L'].map(x => chip('rar', x, RARITY[x])).join('')}
+        <label class="chk inline"><input type="checkbox" data-act="bunowned" ${f.unowned ? 'checked' : ''}> Show cards I don't own</label></div>
+    </div>
+    <div class="bpool">${pool.length ? pool.map(id => `<div class="pcard ${owned(id) ? '' : 'none'}">${cardFace({ id }, false, canAdd(id) ? 'play' : '').replace('data-act="card"', `data-act="addcard" data-id="${id}"`)}<div class="pips" title="Owned ${owned(id)}, in deck ${d.cards[id] || 0}">${pips(id)}</div></div>`).join('') : '<p class="muted">No cards match these filters.</p>'}</div>
+  </section>
+  <aside class="bside">
+    <div id="bpreview" class="bpreview"><div class="hint">Hover a card to see it full size.</div></div>
+    <input id="deckname" class="dname" value="${esc(d.name)}" maxlength="40" aria-label="Deck name">
+    ${d.fac ? `<div class="herobox" style="--fc:${FAC[d.fac].c}"><b>${esc(HEROES[d.fac].name)}</b><span>${d.fac} hero, ${HEROES[d.fac].life} life</span><button class="mini ghost" data-act="clearhero">Change hero</button></div>`
+      : `<div class="herobox empty"><b>Choose a hero</b><span>Or click any card to use its faction's hero.</span><div class="heropick">${Object.keys(HEROES).map(x => `<button class="mini" style="--fc:${FAC[x].c}" data-act="sethero" data-f="${x}">${x}</button>`).join('')}</div></div>`}
+    <div class="bcount"><span class="count ${n === E.deckSize ? 'ok' : ''}">${n}/${E.deckSize}</span><span class="muted small">${pr.length ? esc(pr.join(', ')) : 'Ready to play'}</span></div>
+    ${curveHTML(d.cards)}
+    <div class="dlist2">${list.map(([id, k]) => `<button class="dline r${DEFS[id].rar}" style="--fc:${FAC[DEFS[id].fac].c}" data-act="remcard" data-id="${id}" title="Click to remove one"><em>${costStr(DEFS[id])}</em> ${esc(DEFS[id].name)} <span>×${k}</span></button>`).join('') || '<p class="muted small">Click cards on the left to add them.</p>'}
+    ${d.fac ? `<div class="dline mana">15× ${esc(MANA_NAMES[d.fac])} (free)</div>` : ''}</div>
+    <div class="bbtns"><button data-act="savedeck" ${BUSY ? 'disabled' : ''}>Done</button><button class="ghost" data-act="autofill" ${d.fac ? '' : 'disabled'}>Auto-fill</button><button class="ghost" data-act="cleardeck">Clear</button><button class="ghost" data-act="nav" data-to="decks">Cancel</button></div>
+  </aside></div>`;
 }
 function collectionHTML() {
-  const f = VIEW.colFac || 'All', E = ECONF();
-  const ids = SETIDS().filter(id => f === 'All' || DEFS[id].fac === f).sort((a, b) => DEFS[a].fac.localeCompare(DEFS[b].fac) || DEFS[a].mv - DEFS[b].mv);
-  const ex = totalOverflow();
+  const f = VIEW.colFac || 'All', r = VIEW.colRar || 'All';
+  const ids = SETIDS().filter(id => (f === 'All' || DEFS[id].fac === f) && (r === 'All' || DEFS[id].rar === r)).sort((a, b) => DEFS[a].fac.localeCompare(DEFS[b].fac) || RAR_RANK[DEFS[b].rar] - RAR_RANK[DEFS[a].rar] || DEFS[a].mv - DEFS[b].mv);
+  const ex = totalOverflow(), exSol = Object.keys(ACC.collection).reduce((s, id) => s + overflow(id) * sellOf(id), 0);
+  const have = SETIDS().filter(id => owned(id)).length;
   return `<div class="hub wide"><h1>Collection</h1>
-  <p class="sub">Cards you open in packs can be sold for ${E.tradeValue} Sol each. Cards from your starter deck can't be sold, so you always keep a playable deck.</p>
-  <div class="filters">${['All', ...Object.keys(HEROES)].map(x => `<button class="${x === f ? '' : 'ghost'}" data-act="colfac" data-f="${x}">${x}</button>`).join('')}
-  ${ex ? `<button data-act="tradeall" class="tradeall" ${BUSY ? 'disabled' : ''}>Sell ${ex} copies beyond ${E.maxCopies} for ${ex * E.tradeValue} Sol</button>` : ''}</div>
+  <p class="sub">${have} of ${SETIDS().length} cards in ${esc((CONF && CONF.releaseName) || 'Intro to Ahrivaea')}. Cards from packs sell for 5 Sol (Common), 10 (Uncommon), 25 (Rare) or 60 (Legendary). Starter Deck cards can't be sold.</p>
+  <div class="filters">${['All', ...Object.keys(HEROES)].map(x => `<button class="${x === f ? '' : 'ghost'}" data-act="colfac" data-f="${x}">${x}</button>`).join('')}</div>
+  <div class="filters">${['All', 'C', 'U', 'R', 'L'].map(x => `<button class="${x === r ? '' : 'ghost'}" data-act="colrar" data-f="${x}">${x === 'All' ? 'All rarities' : RARITY[x]}</button>`).join('')}
+  ${ex ? `<button data-act="tradeall" class="tradeall" ${BUSY ? 'disabled' : ''}>Sell ${ex} copies beyond ${ECONF().maxCopies} for ${exSol} Sol</button>` : ''}</div>
   ${VIEW.flash ? `<div class="notice">${esc(VIEW.flash)}</div>` : ''}
-  <div class="pool">${ids.map(id => { const have = owned(id), s = sellable(id), lk = Math.min(lockedN(id), have);
-    return `<div class="pcard ${have ? '' : 'none'}">${cardFace({ id }, false).replace('data-act="card"', 'data-act="x"')}<div class="own">${have ? `Owned ×${have}${lk ? ` (${lk} from starter)` : ''}` : 'Not owned'}${s ? ` <button class="mini" data-act="trade1" data-id="${id}" ${BUSY ? 'disabled' : ''}>Sell 1 for ${E.tradeValue} Sol</button>` : ''}</div></div>`; }).join('')}</div></div>`;
+  <div class="pool">${ids.map(id => { const hv = owned(id), s = sellable(id), lk = Math.min(lockedN(id), hv);
+    return `<div class="pcard ${hv ? '' : 'none'}">${cardFace({ id }, false).replace('data-act="card"', 'data-act="x"')}<div class="own">${hv ? `Owned ×${hv}${lk ? ` (${lk} from starter)` : ''}` : 'Not owned'}${s ? ` <button class="mini" data-act="trade1" data-id="${id}" ${BUSY ? 'disabled' : ''}>Sell 1 for ${sellOf(id)} Sol</button>` : ''}</div></div>`; }).join('')}</div></div>`;
 }
 function shopHTML() {
-  const E = ECONF(), can = ACC.sol >= E.packPrice, opened = VIEW.opened, set = (CONF && CONF.setName) || 'Core Set';
+  const E = ECONF(), can = ACC.sol >= E.packPrice, opened = VIEW.opened, rel = (CONF && CONF.releaseName) || 'Intro to Ahrivaea';
+  const lp = Math.round(((CONF && CONF.legendaryChance) || 0.15) * 100);
   return `<div class="hub"><h1>Shop</h1>
-  <div class="packoffer"><div class="pack"><span>${set}</span><b>${E.packSize} cards</b></div>
-  <div><h2 class="h2">${set} pack</h2><p class="sub small">${E.packSize} cards picked at random from all ${SETIDS().length} cards in the ${set}. You have ${ACC.sol} Sol.</p>
+  <div class="packoffer"><div class="pack"><span>${esc(rel)}</span><b>Expansion Pack</b></div>
+  <div><h2 class="h2">${esc(rel)} Expansion Pack</h2><p class="sub small">${E.packSize} cards from all ${SETIDS().length} cards in ${esc(rel)}, including cards you can't get any other way: 3 Common, 1 Uncommon and 1 Rare. That Rare is upgraded to a Legendary ${lp}% of the time. You have ${ACC.sol} Sol.</p>
   <button data-act="buypack" ${can && !BUSY ? '' : 'disabled'}>Buy a pack for ${E.packPrice} Sol</button>${can ? '' : `<p class="muted small">You need ${E.packPrice - ACC.sol} more Sol. Win games or sell cards from packs.</p>`}</div></div>
+  ${opened ? `<h2 class="h2">You opened</h2><div class="reveal">${opened.map((c, i) => `<div class="rv" style="animation-delay:${i * 180}ms">${cardFace({ id: c.id }, false).replace('data-act="card"', 'data-act="x"')}${c.fresh ? '<div class="newtag">New</div>' : ''}</div>`).join('')}</div>` : ''}
   <h2 class="h2">Starter Decks: ${E.starterPrice} Sol each</h2>
   <p class="sub small">40 cards from one faction and a ready-to-play deck. Starter Deck cards can't be sold.</p>
-  <div class="facpick">${Object.keys(HEROES).map(f => { const n = (ACC.stats.starterFacs || {})[f] || 0; return `<button class="facbtn" style="--fc:${FAC[f].c}" data-act="buystarter" data-f="${f}" ${ACC.sol >= E.starterPrice && !BUSY ? '' : 'disabled'}><b>${f}</b><span>${esc(HEROES[f].name)}</span><em>Buy for ${E.starterPrice} Sol</em></button>`; }).join('')}</div>
-  ${ACC.sol < E.starterPrice ? `<p class="muted small">You need ${E.starterPrice - ACC.sol} more Sol for a Starter Deck.</p>` : ''}
-  ${opened ? `<h2 class="h2">You opened</h2><div class="reveal">${opened.map((c, i) => `<div class="rv" style="animation-delay:${i * 180}ms">${cardFace({ id: c.id }, false).replace('data-act="card"', 'data-act="x"')}${c.fresh ? '<div class="newtag">New</div>' : ''}</div>`).join('')}</div>` : ''}</div>`;
+  <div class="facpick">${Object.keys(HEROES).map(f => `<button class="facbtn" style="--fc:${FAC[f].c}" data-act="buystarter" data-f="${f}" ${ACC.sol >= E.starterPrice && !BUSY ? '' : 'disabled'}><b>${f}</b><span>${esc(HEROES[f].name)}</span><em>Buy for ${E.starterPrice} Sol</em></button>`).join('')}</div>
+  ${ACC.sol < E.starterPrice ? `<p class="muted small">You need ${E.starterPrice - ACC.sol} more Sol for a Starter Deck.</p>` : ''}</div>`;
 }
 function adminHTML() {
   if (!ADMIN) return `<div class="hub"><h1>Admin</h1><p class="sub">Loading players…</p></div>`;
@@ -178,9 +224,11 @@ function hubHTML() {
   if (ACC_MODE === 'loading') return `<div class="setup"><h1>Ahrivaea</h1><p class="sub">Loading…</p></div>`;
   if (!ACC) return authHTML() + t;
   const body = { home: homeHTML, play: playHTML, decks: decksHTML, edit: editHTML, collection: collectionHTML, shop: shopHTML, admin: adminHTML }[SCREEN] || homeHTML;
-  return hubHeader() + body() + t;
+  const heroModal = SCREEN === 'edit' && VIEW.confirmHero ? `<div class="modal"><div class="box"><h2>Change hero?</h2><p>Your deck's cards all belong to the current hero's faction, so changing heroes empties the deck.</p><button data-act="clearheroyes">Change hero and empty the deck</button> <button class="ghost" data-act="clearherono">Keep this hero</button></div></div>` : '';
+  return hubHeader() + body() + heroModal + t;
 }
 
+function keepName() { const el = document.getElementById('deckname'); if (el && VIEW.draft) VIEW.draft.name = el.value; }
 function hubClick(el, act) {
   const id = el.dataset.id;
   switch (act) {
@@ -188,18 +236,31 @@ function hubClick(el, act) {
     case 'signfac': VIEW.signName = (document.getElementById('accname') || {}).value || ''; VIEW.signFac = el.dataset.f; render(); return true;
     case 'logout': busy(async () => { try { await api('/api/logout', {}); } catch (e) {} TOKEN = null; store('ahr_token', null); ACC = null; G = null; SCREEN = 'home'; VIEW = {}; }); return true;
     case 'nav': SCREEN = el.dataset.to; VIEW = { oppFac: VIEW.oppFac }; render(); window.scrollTo(0, 0); if (SCREEN === 'admin') { ADMIN = null; busy(async () => { ADMIN = (await api('/api/admin/users')).users; }); } return true;
-    case 'newdeck': { const f = el.dataset.f; VIEW = { draft: { id: '', name: 'New ' + f + ' deck', fac: f, cards: {} } }; SCREEN = 'edit'; render(); return true; }
-    case 'editdeck': { const d = ACC.decks.find(x => x.id === id); VIEW = { draft: JSON.parse(JSON.stringify(d)) }; SCREEN = 'edit'; render(); return true; }
+    case 'newdeck': { VIEW = { draft: { id: '', name: 'New deck', fac: null, cards: {} }, f: {} }; SCREEN = 'edit'; render(); window.scrollTo(0, 0); return true; }
+    case 'editdeck': { const d = ACC.decks.find(x => x.id === id); VIEW = { draft: JSON.parse(JSON.stringify(d)), f: {} }; SCREEN = 'edit'; render(); window.scrollTo(0, 0); return true; }
+    case 'bf': { const k = el.dataset.k, v = el.dataset.v; VIEW.f[k] = v === '' ? undefined : (k === 'cost' ? +v : v); keepName(); render(); return true; }
+    case 'bunowned': VIEW.f.unowned = el.checked; keepName(); render(); return true;
+    case 'sethero': { keepName(); const d = VIEW.draft; d.fac = el.dataset.f; for (const cid of Object.keys(d.cards)) if (DEFS[cid].fac !== d.fac) delete d.cards[cid]; if (/^New deck$/.test(d.name)) d.name = 'New ' + d.fac + ' deck'; render(); return true; }
+    case 'clearhero': { keepName(); const d = VIEW.draft; if (deckCount(d)) { VIEW.confirmHero = true; } else d.fac = null; render(); return true; }
+    case 'clearheroyes': { const d = VIEW.draft; d.fac = null; d.cards = {}; VIEW.confirmHero = false; render(); return true; }
+    case 'clearherono': VIEW.confirmHero = false; render(); return true;
+    case 'cleardeck': keepName(); VIEW.draft.cards = {}; render(); return true;
+    case 'autofill': { keepName(); const d = VIEW.draft, E = ECONF(); const pool = SETIDS().filter(x => DEFS[x].fac === d.fac && owned(x)).sort((a, b) => RAR_RANK[DEFS[b].rar] - RAR_RANK[DEFS[a].rar] || Math.abs(DEFS[a].mv - 3) - Math.abs(DEFS[b].mv - 3));
+      for (let pass = 0; pass < E.maxCopies && deckCount(d) < E.deckSize; pass++) for (const x of pool) { if (deckCount(d) >= E.deckSize) break; if (canAdd(x)) d.cards[x] = (d.cards[x] || 0) + 1; }
+      render(); return true; }
     case 'dupdeck': { const d = ACC.decks.find(x => x.id === id); const c = JSON.parse(JSON.stringify(d)); c.id = ''; c.name = (d.name + ' (copy)').slice(0, 40); busy(async () => { ACC = (await api('/api/deck/save', { deck: c })).account; }); return true; }
     case 'deldeck': VIEW.confirmDel = id; render(); return true;
     case 'deldeckno': VIEW.confirmDel = null; render(); return true;
     case 'deldeckyes': { const del = VIEW.confirmDel; VIEW.confirmDel = null; busy(async () => { ACC = (await api('/api/deck/delete', { id: del })).account; }); return true; }
-    case 'addcard': { const d = VIEW.draft, E = ECONF(); d.name = document.getElementById('deckname').value; const k = d.cards[id] || 0; if (owned(id) > k && k < E.maxCopies && deckCount(d) < E.deckSize) d.cards[id] = k + 1; render(); return true; }
-    case 'remcard': { const d = VIEW.draft; d.name = document.getElementById('deckname').value; if (d.cards[id]) { d.cards[id]--; if (!d.cards[id]) delete d.cards[id]; } render(); return true; }
-    case 'savedeck': { const d = VIEW.draft; d.name = document.getElementById('deckname').value.trim() || 'Untitled deck'; busy(async () => { ACC = (await api('/api/deck/save', { deck: d })).account; SCREEN = 'decks'; VIEW = {}; }); return true; }
+    case 'addcard': { const d = VIEW.draft; keepName(); if (!d.fac && owned(id)) d.fac = DEFS[id].fac; if (/^New deck$/.test(d.name)) d.name = 'New ' + d.fac + ' deck'; if (canAdd(id)) d.cards[id] = (d.cards[id] || 0) + 1; render(); return true; }
+    case 'remcard': { const d = VIEW.draft; keepName(); if (d.cards[id]) { d.cards[id]--; if (!d.cards[id]) delete d.cards[id]; } render(); return true; }
+    case 'savedeck': { const d = VIEW.draft; keepName(); d.name = d.name.trim() || 'Untitled deck'; if (!d.fac) { TOAST = 'Choose a hero first.'; render(); return true; } busy(async () => { ACC = (await api('/api/deck/save', { deck: d })).account; SCREEN = 'decks'; VIEW = {}; }); return true; }
     case 'colfac': VIEW.colFac = el.dataset.f; VIEW.flash = null; render(); return true;
+    case 'colrar': VIEW.colRar = el.dataset.f; VIEW.flash = null; render(); return true;
     case 'trade1': busy(async () => { const r = await api('/api/trade', { id, n: 1 }); ACC = r.account; VIEW.flash = `Sold 1 ${DEFS[id].name} for ${r.gained} Sol.`; }); return true;
     case 'tradeall': busy(async () => { const r = await api('/api/trade', { all: true }); ACC = r.account; VIEW.flash = `Sold your extra copies for ${r.gained} Sol.`; }); return true;
+    case 'changepw': { const cur = document.getElementById('pwcur').value, nw = document.getElementById('pwnew').value; busy(async () => { await api('/api/password', { current: cur, password: nw }); VIEW.pwOpen = false; TOAST = 'Password changed.'; }); return true; }
+    case 'pwtoggle': VIEW.pwOpen = !VIEW.pwOpen; render(); return true;
     case 'buystarter': { const f = el.dataset.f; busy(async () => { const r = await api('/api/starter', { fac: f }); ACC = r.account; TOAST = `You bought the ${f} Starter Deck. It's in your Decks.`; }); return true; }
     case 'buypack': busy(async () => { const r = await api('/api/pack', {}); ACC = r.account; VIEW.opened = r.opened; }); return true;
     case 'setsol': { const u = ADMIN[+el.dataset.i], v = document.getElementById('sol' + el.dataset.i).value; busy(async () => { const r = await api('/api/admin/sol', { name: u.name, sol: +v }); ACC = r.account; u.sol = Math.floor(+v); TOAST = `${u.name} now has ${u.sol} Sol.`; }); return true; }
@@ -219,5 +280,19 @@ if (typeof document !== 'undefined') {
       TOKEN = r.token; store('ahr_token', TOKEN); ACC = r.account; CONF = r.config; SCREEN = 'home'; VIEW = {};
       if (ACC.inGame) await resumeGame();
     });
+  });
+}
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('input', e => {
+    if (e.target.id !== 'bsearch') return;
+    VIEW.f.q = e.target.value; keepName(); render();
+    const s = document.getElementById('bsearch'); if (s) { s.focus(); s.setSelectionRange(s.value.length, s.value.length); }
+  });
+  document.addEventListener('mouseover', e => {
+    if (G) return;
+    const el = e.target.closest('.card'); const box = document.getElementById('bpreview');
+    if (!el || !box || el.classList.contains('big') || !el.dataset.def) return;
+    box.innerHTML = cardFace({ id: el.dataset.def }, true);
   });
 }

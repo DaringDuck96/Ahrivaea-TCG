@@ -9,23 +9,32 @@ async function call(path, body, token) {
 }
 let r;
 // accounts
-r = await call('/api/signup', { name: 'Owner', password: 'secret1', starter: 'Warbound' });
+r = await call('/api/signup', { name: 'Owner', password: 'secret11', starter: 'Warbound' });
 assert.equal(r.status, 200); const owner = r.body.token; assert.equal(r.body.account.sol, 0, '500 Sol minus the 500 Sol starter deck'); assert.equal(r.body.account.admin, true);
 assert.equal(r.body.account.decks.length, 1); assert.equal(Object.values(r.body.account.decks[0].cards).reduce((a, b) => a + b, 0), 40);
 assert.equal((await call('/api/starter', { fac: 'Oathsong' }, owner)).status, 400, 'no Sol for a second starter');
-r = await call('/api/signup', { name: 'friend', password: 'secret2', starter: 'Lorebound' });
+r = await call('/api/signup', { name: 'friend', password: 'secret22', starter: 'Lorebound' });
 const friend = r.body.token; assert.equal(r.body.account.admin, false);
-assert.equal((await call('/api/signup', { name: 'OWNER', password: 'xxxxxx', starter: 'Warbound' })).status, 409, 'names are unique');
+assert.equal((await call('/api/signup', { name: 'OWNER', password: 'xxxxxxxx', starter: 'Warbound' })).status, 409, 'names are unique');
 assert.equal((await call('/api/login', { name: 'Owner', password: 'nope' })).status, 401);
-r = await call('/api/login', { name: 'owner', password: 'secret1' }); assert.equal(r.status, 200);
+r = await call('/api/login', { name: 'owner', password: 'secret11' }); assert.equal(r.status, 200);
 assert.equal((await call('/api/me')).status, 401, 'needs a token');
+assert.equal((await call('/api/signup', { name: 'Shorty', password: 'short', starter: 'Warbound' })).status, 400, 'passwords need 8 characters');
+// too many wrong passwords locks the login for a while
+for (let i = 0; i < 8; i++) assert.equal((await call('/api/login', { name: 'friend', password: 'wrong-guess' })).status, 401);
+assert.equal((await call('/api/login', { name: 'friend', password: 'secret22' })).status, 429, 'locked after 8 wrong tries');
+// changing a password
+assert.equal((await call('/api/password', { current: 'nope', password: 'newpass123' }, owner)).status, 400);
+assert.equal((await call('/api/password', { current: 'secret11', password: 'newpass123' }, owner)).status, 200);
+assert.equal((await call('/api/login', { name: 'Owner', password: 'newpass123' })).status, 200);
 // starter cards can't be sold
 r = await call('/api/trade', { id: 'bloodied_recruit', n: 1 }, owner); assert.equal(r.status, 400);
 // packs (the owner gives themselves Sol first)
 assert.equal((await call('/api/admin/sol', { name: 'Owner', sol: 1000 }, owner)).status, 200);
 r = await call('/api/starter', { fac: 'Oathsong' }, owner); assert.equal(r.status, 200); assert.equal(r.body.account.sol, 500); assert.equal(r.body.account.decks.length, 2);
 assert.equal(r.body.account.locked['shieldmaiden'], 2, 'bought starter cards are locked too');
-for (let i = 0; i < 5; i++) { r = await call('/api/pack', {}, owner); assert.equal(r.status, 200); assert.equal(r.body.opened.length, 5); }
+for (let i = 0; i < 5; i++) { r = await call('/api/pack', {}, owner); assert.equal(r.status, 200); assert.equal(r.body.opened.length, 5);
+  const rs = r.body.opened.map(c => c.rar); assert.deepEqual(rs.slice(0, 4), ['C', 'C', 'C', 'U']); assert.ok(['R', 'L'].includes(rs[4])); }
 assert.equal(r.body.account.sol, 0);
 assert.equal((await call('/api/pack', {}, owner)).status, 400, 'no Sol, no pack');
 // selling a pack card works, starter copies stay
