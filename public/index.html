@@ -99,6 +99,7 @@ button:focus-visible, .card:focus-visible { outline: 2px solid var(--brass-hi); 
 .card .cost { font-size: calc(var(--w) * .058); white-space: nowrap; line-height: 1; font-weight: 700; color: #2a1d12; }
 .card .ty { left: 9.5%; right: 9%; top: 54.6%; height: 4.6%; display: flex; align-items: center; justify-content: space-between; gap: 2%; font-size: calc(var(--w) * .046); color: #4a3a2b; font-weight: 600; white-space: nowrap; }
 .card .ty > span:first-child { overflow: hidden; text-overflow: ellipsis; }
+.card .wm { left: 8%; right: 8%; top: 61.5%; bottom: 8%; display: grid; place-items: center; font-size: calc(var(--w) * .26); opacity: .16; filter: grayscale(.3); pointer-events: none; line-height: 1; }
 .card .tx { left: 10%; right: 10%; top: 63%; bottom: 13.5%; overflow: hidden; line-height: 1.25; font-family: var(--serif); color: #2a1d12; }
 .card.long .tx { font-size: calc(var(--w) * .046); } .card.xlong .tx { font-size: calc(var(--w) * .041); }
 .card .bd { left: 8%; right: 8%; bottom: 48%; display: flex; flex-wrap: wrap-reverse; gap: 2px; }
@@ -1855,7 +1856,7 @@ function cardFace(o, big, cls = '') {
     + art
     + `<div class="hd"><span class="nm">${esc(d.name)}</span>${d.token || d.type === 'Mana' ? '' : `<span class="cost">${costStr(d)}</span>`}</div>`
     + `<div class="ty"><span>${d.token ? 'Token ' : ''}${d.type}${kl ? ' · ' + kl : ''}</span>${d.rar && typeof RARITY !== 'undefined' ? `<span class="rar r${d.rar}" title="${RARITY[d.rar]}">${RARITY[d.rar]}</span>` : ''}</div>`
-    + `<div class="tx">${esc(d.text || '')}</div>`
+    + `<div class="wm" aria-hidden="true">${FAC[d.fac].s}</div><div class="tx">${esc(d.text || '')}</div>`
     + (b.length ? `<div class="bd">${b.map(x => x.startsWith('<span') ? x : `<span>${x}</span>`).join('')}</div>` : '')
     + st + `</div>`;
 }

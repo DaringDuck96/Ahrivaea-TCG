@@ -40,7 +40,7 @@ function cardFace(o, big, cls = '') {
     + art
     + `<div class="hd"><span class="nm">${esc(d.name)}</span>${d.token || d.type === 'Mana' ? '' : `<span class="cost">${costStr(d)}</span>`}</div>`
     + `<div class="ty"><span>${d.token ? 'Token ' : ''}${d.type}${kl ? ' · ' + kl : ''}</span>${d.rar && typeof RARITY !== 'undefined' ? `<span class="rar r${d.rar}" title="${RARITY[d.rar]}">${RARITY[d.rar]}</span>` : ''}</div>`
-    + `<div class="tx">${esc(d.text || '')}</div>`
+    + `<div class="wm" aria-hidden="true">${FAC[d.fac].s}</div><div class="tx">${esc(d.text || '')}</div>`
     + (b.length ? `<div class="bd">${b.map(x => x.startsWith('<span') ? x : `<span>${x}</span>`).join('')}</div>` : '')
     + st + `</div>`;
 }
