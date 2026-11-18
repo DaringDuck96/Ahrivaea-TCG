@@ -111,9 +111,6 @@ button:focus-visible, .card:focus-visible { outline: 2px solid var(--brass-hi); 
 
 /* mid rail */
 #mid { background: var(--rail); border: 1px solid rgba(202,162,76,.6); box-shadow: 0 6px 20px rgba(0,0,0,.45); border-radius: 12px; padding: 10px 14px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; position: sticky; top: 0; z-index: 5; }
-#mid .turn { font-family: var(--serif); color: var(--brass-hi); font-size: 15px; white-space: nowrap; }
-#mid .prompt { flex: 1; min-width: 220px; font-size: 14.5px; line-height: 1.4; }
-#mid .btns { display: flex; gap: 8px; flex-wrap: wrap; }
 .muted { color: var(--slate); }
 
 /* inspector + log */
@@ -308,3 +305,34 @@ form.seat button[type=submit] { margin-top: 6px; }
 .manarow .stepper .mini { padding: 0 9px; font-size: 15px; line-height: 22px; }
 .linkbtn { background: none; border: 0; padding: 4px 0; color: var(--brass-hi); text-decoration: underline; cursor: pointer; font-weight: 400; }
 .manarow .stepper .mini:hover:not(:disabled), .manarow .stepper .mini:focus-visible { color: #1a0e07; }
+
+/* ----- action bar: turn banner, phase tracker, one main button (MTG Arena style) ----- */
+#mid { display: grid; grid-template-columns: auto auto minmax(200px, 1fr) auto; align-items: center; gap: 10px 18px; }
+#mid.theirs { border-color: rgba(200,90,70,.6); }
+#mid .tbanner { display: flex; flex-direction: column; line-height: 1.1; min-width: 118px; }
+#mid .tbanner b { font-family: var(--serif); font-size: 19px; color: var(--brass-hi); }
+#mid.theirs .tbanner b { color: #f0a08a; }
+#mid .tbanner .tn { font-size: 12px; color: #b9a98f; margin-top: 3px; }
+.phases { list-style: none; margin: 0; padding: 0; display: flex; gap: 2px; }
+.phases li { font-size: 12px; font-weight: 600; padding: 5px 9px; background: rgba(255,255,255,.06); color: #8f8270; white-space: nowrap; }
+.phases li:first-child { border-radius: 12px 0 0 12px; } .phases li:last-child { border-radius: 0 12px 12px 0; }
+.phases li.now { background: var(--brass); color: #1d1607; box-shadow: 0 0 10px rgba(236,201,109,.55); }
+.phases.theirs li.now { background: #c45a44; color: #fff; box-shadow: 0 0 10px rgba(196,90,68,.55); }
+#mid .prompt { font-size: 15px; line-height: 1.4; }
+#mid .btns { display: flex; gap: 8px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
+#mid button.primary { font-size: 17px; padding: 11px 22px; border-radius: 22px; min-width: 150px; background: linear-gradient(180deg, #f2c25a, #d6892c); border-color: #f6d27a; color: #1d1205; box-shadow: 0 0 14px rgba(240,170,70,.55); }
+#mid button.primary:hover:not(:disabled) { background: linear-gradient(180deg, #f8d273, #e0973a); }
+button.linkish { background: none; border: 0; color: #c8b89c; text-decoration: underline; font-weight: 400; padding: 4px 6px; }
+button.linkish:hover:not(:disabled) { background: none; color: #fff; }
+@media (max-width: 1100px) { #mid { grid-template-columns: auto 1fr; } #mid .prompt, #mid .btns { grid-column: 1 / -1; } #mid .btns { justify-content: flex-start; } }
+
+/* ----- hand: bigger cards, menu pops up on the card you click ----- */
+.handrow { gap: 10px; padding-top: 6px; }
+.handrow .card { --w: 128px; }
+.hslot { position: relative; }
+.handrow .card.play:hover { transform: translateY(-8px); }
+.cardmenu { position: absolute; bottom: calc(100% + 4px); left: 50%; transform: translateX(-50%); z-index: 30; width: 190px; background: #1d130b; border: 1px solid var(--brass); border-radius: 10px; padding: 8px; display: flex; flex-direction: column; gap: 6px; box-shadow: 0 8px 24px rgba(0,0,0,.7); }
+.cardmenu p { margin: 0; font-size: 13px; color: #eadcc4; line-height: 1.35; }
+.cardmenu button { width: 100%; }
+.cardmenu .linkish { width: auto; align-self: center; }
+.hero .hname { padding-right: 44px; }

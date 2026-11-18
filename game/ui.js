@@ -99,54 +99,87 @@ function areaHTML(i, isTop) {
   if (isTop) {
     hand = G.hidden ? (pl.hand.length ? `<div class="ohand">${pl.hand.map(() => '<div class="back"></div>').join('')}</div>` : '')
       : (pl.hand.length ? `<div class="ohand wtiles">${pl.hand.map(c => `<div class="wt" style="--fc:${FAC[def(c).fac].c}" data-uid="${c.uid}" data-def="${c.id}">${esc(def(c).name)}</div>`).join('')}</div>` : '');
-  } else hand = `<div class="row handrow">${pl.hand.map(c => cardFace(c, false, candCls(c, 'hand'))).join('') || '<span class="muted">No cards in hand.</span>'}</div>`;
+  } else hand = `<div class="row handrow">${pl.hand.map(c => `<div class="hslot">${cardFace(c, false, candCls(c, 'hand'))}${UI.sel === c.uid && !UI.selWell ? cardMenuHTML(c) : ''}</div>`).join('') || '<span class="muted">No cards in hand.</span>'}</div>`;
   const relics = pl.relics.map(r => cardFace(r, false, candCls(r, 'relic'))).join('');
   const units = pl.board.map(u => cardFace(u, false, candCls(u, 'board'))).join('');
   const board = `<div class="row battlefield ${pl.board.length || pl.relics.length ? '' : 'empty'}" data-empty="${esc(pl.name)}'s battlefield is empty.">${relics}${relics && units ? '<div class="sep"></div>' : ''}${units}</div>`;
   const col = `<div class="hcol">${heroHTML(i, isTop)}${wellHTML(i)}${isTop ? hand : ''}</div>`;
   return `<section class="parea ${isTop ? 'top' : 'bottom'}"><div class="tablerow">${col}${board}</div>${isTop ? '' : hand}</section>`;
 }
+// MTG-style phase tracker. Ready and Draw happen on their own; the player acts in Main 1, Combat and Main 2.
+const PHASES = [['ready', 'Ready'], ['draw', 'Draw'], ['main1', 'Main 1'], ['combat', 'Combat'], ['main2', 'Main 2'], ['end', 'End']];
+function phaseKey() {
+  const q = G.pending;
+  if (!G.turn) return '';
+  if (G.over) return 'end';
+  if (q && (q.kind === 'attack' || q.kind === 'block')) return 'combat';
+  if (G.phase === 'Blocks' || G.phase === 'Damage' || (G.combat && G.combat.length)) return 'combat';
+  if (G.phase === 'Main') return G.attacked ? 'main2' : 'main1';
+  return ({ Ready: 'ready', Draw: 'draw', End: 'end' })[G.phase] || '';
+}
+function phaseHTML() {
+  const k = phaseKey(), mine = G.active === G.viewer;
+  return `<ol class="phases ${mine ? 'mine' : 'theirs'}" aria-label="Turn phases">${PHASES.map(([key, label]) => `<li class="${key === k ? 'now' : ''}" ${key === k ? 'aria-current="step"' : ''}>${label}</li>`).join('')}</ol>`;
+}
+// The menu that opens on a hand card you click during your main phase.
+function cardMenuHTML(c) {
+  const q = G.pending, L = legalMain(q.who), d = def(c), cs = costStr(costOf(q.who, d));
+  let h = '';
+  if (d.type === 'Mana') {
+    h += L.well.includes(c.uid) ? `<button data-act="towell">Play ${esc(d.name)}</button>` : `<p>You've already played a Mana card this turn.</p>`;
+  } else {
+    if (L.cast.includes(c.uid)) h += `<button data-act="cast">Cast for ${cs}</button>`;
+    else h += `<p>${d.type === 'Reaction' ? 'Reactions are played on your opponent’s turn, when they cast a card or attack.' : `Not enough mana to cast this (costs ${cs}).`}</p>`;
+    if (L.well.includes(c.uid)) h += `<button data-act="towell" class="ghost">Put into Well as mana</button>`;
+  }
+  return `<div class="cardmenu" role="menu">${h}<button data-act="unsel" class="linkish">Cancel</button></div>`;
+}
 function midHTML() {
-  const q = G.pending, a = P(G.active);
-  let prompt = '', btns = '';
-  if (G.over) { prompt = `<b>${esc(P(G.winner).name)} wins!</b> ${G.rewardText ? esc(G.rewardText) : ''}`; btns = `<button data-act="home">Back to home</button>`; }
+  const q = G.pending, mine = G.active === G.viewer;
+  let banner = mine ? 'Your turn' : `${esc(P(G.active).name)}’s turn`, prompt = '', main = '', alt = '';
+  const B = (act, label, extra = '') => `<button class="primary" data-act="${act}" ${extra}>${label}</button>`;
+  const S = (act, label, extra = '') => `<button class="ghost" data-act="${act}" ${extra}>${label}</button>`;
+  if (!G.turn) banner = 'Opening hand';
+  if (G.over) { banner = G.winner === G.viewer ? 'Victory' : 'Defeat'; prompt = `<b>${esc(P(G.winner).name)} wins!</b> ${G.rewardText ? esc(G.rewardText) : ''}`; main = B('home', 'Back to home'); }
   else if (q) {
-    const who = q.who != null ? esc(P(q.who).name) : '';
     switch (q.kind) {
       case 'main': {
-        const L = legalMain(q.who);
-        if (UI.sel) {
-          const c = findUid(UI.sel), d = def(c), cs = costStr(costOf(q.who, d));
-          prompt = `${nm(d.name)}: what would you like to do?`;
-          if (UI.selWell) btns += `<button data-act="wellcast">Cast from Well (${cs})</button>`;
-          else {
-            if (d.type === 'Mana') {
-              if (L.well.includes(UI.sel)) btns += `<button data-act="towell">Play ${esc(d.name)}</button>`;
-              else prompt += ' <span class="muted">You\u2019ve already added a card to your Well this turn.</span>';
-            } else {
-              if (L.cast.includes(UI.sel)) btns += `<button data-act="cast">Cast (${cs})</button>`;
-              else prompt += ` <span class="muted">${d.type === 'Reaction' ? 'Reactions are played during your opponent’s turn.' : 'You can’t cast this right now.'}</span>`;
-              if (L.well.includes(UI.sel)) btns += `<button data-act="towell" class="ghost">Use as mana (put into Well)</button>`;
-            }
-          }
-          btns += `<button data-act="unsel" class="ghost">Back</button>`;
+        const L = legalMain(q.who), pl = P(q.who), k = phaseKey();
+        if (UI.sel && UI.selWell) {
+          const d = def(findUid(UI.sel));
+          prompt = `Cast ${nm(d.name)} from your Well?`;
+          main = B('wellcast', `Cast for ${costStr(costOf(q.who, d))}`); alt = S('unsel', 'Cancel');
         } else {
-          prompt = `${who}, it's your main phase. Click a card in your hand to cast it or add it to your Well.`;
-          if (L.attack) btns += `<button data-act="attack">Attack</button>`;
-          btns += `<button data-act="end" class="ghost">End turn</button>`;
+          const tips = [];
+          if (L.well.length && !pl.wellPlays) tips.push(pl.hand.some(c => def(c).type === 'Mana') ? 'Play a Mana card' : 'Put a card into your Well for mana');
+          if (L.cast.length) tips.push('cast glowing cards');
+          if (L.power) tips.push('use your hero power');
+          if (k === 'main1' && L.attack) tips.push('then go to combat');
+          prompt = tips.length ? tips.join(', ').replace(/^./, x => x.toUpperCase()) + '.' : 'Nothing else to play this turn.';
+          if (k === 'main1' && L.attack) { main = B('attack', 'Go to combat'); alt = S('end', 'End turn'); }
+          else main = B('end', 'End turn');
         }
         break;
       }
-      case 'pick': prompt = q.prompt + (q.players && q.players.length ? ' <span class="muted">Click a highlighted unit or hero.</span>' : ' <span class="muted">Click a highlighted card.</span>'); if (q.optional) btns = `<button data-act="skip" class="ghost">Skip</button>`; break;
-      case 'attack': prompt = `${q.prompt} <span class="muted">${UI.atk.size} selected.</span>`; btns = `<button data-act="confirmAttack" ${UI.atk.size ? '' : 'disabled'}>Attack with ${UI.atk.size}</button><button data-act="cancelAttack" class="ghost">Cancel</button>`; break;
-      case 'react': prompt = `${q.prompt} <span class="muted">Click a highlighted card to play it.</span>`; btns = `<button data-act="done" class="ghost">Don't respond</button>`; break;
-      case 'block': prompt = q.prompt + (UI.blkSel ? ' <span class="muted">Now click the attacker it blocks.</span>' : ''); btns = `<button data-act="confirmBlock">Confirm blocks</button>`; break;
-      case 'buttons': prompt = q.prompt; btns = q.options.map((o, k) => `<button data-act="opt" data-k="${k}" ${k ? 'class="ghost"' : ''}>${esc(o[0])}</button>`).join(''); break;
+      case 'attack': banner = 'Combat: choose attackers';
+        prompt = `${UI.atk.size ? `${UI.atk.size} attacking.` : 'Click your untapped units to attack with them.'} <span class="muted">${esc(q.prompt)}</span>`;
+        main = UI.atk.size ? B('confirmAttack', `Attack with ${UI.atk.size}`) : B('cancelAttack', 'No attack');
+        if (UI.atk.size) alt = S('cancelAttack', 'Cancel'); break;
+      case 'block': { banner = 'Combat: choose blockers'; const n = Object.keys(UI.blk).length;
+        prompt = UI.blkSel ? 'Now click the attacker it should block.' : 'Click one of your units, then the attacker it blocks.';
+        main = B('confirmBlock', n ? `Confirm ${n} block${n > 1 ? 's' : ''}` : 'No blocks'); break; }
+      case 'react': banner = mine ? 'Your turn: respond?' : 'Respond?';
+        prompt = `${q.prompt} <span class="muted">Click a glowing Reaction to play it.</span>`; main = B('done', 'Pass'); break;
+      case 'pick': banner = 'Choose a target';
+        prompt = q.prompt + (q.players && q.players.length ? ' <span class="muted">Click a glowing unit or hero.</span>' : ' <span class="muted">Click a glowing card.</span>');
+        if (q.optional) main = B('skip', 'Skip'); break;
+      case 'buttons': prompt = q.prompt; main = q.options.length ? B('opt', esc(q.options[0][0]), 'data-k="0"') : '';
+        alt = q.options.slice(1).map((o, k) => S('opt', esc(o[0]), `data-k="${k + 1}"`)).join(''); break;
       default: prompt = q.prompt || '';
     }
   } else prompt = '<span class="muted">The computer is thinking…</span>';
-  if (typeof ONLINE !== 'undefined' && !G.over) btns += `<button data-act="forfeit" class="ghost" title="Counts as a loss">Forfeit</button>`;
-  return `<div id="mid"><div class="turn">Turn ${G.turn || 0}, ${esc(a.name)}</div><div class="prompt">${prompt}</div><div class="btns">${btns}</div></div>`;
+  const forfeit = typeof ONLINE !== 'undefined' && !G.over ? `<button data-act="forfeit" class="linkish" title="Counts as a loss">Forfeit</button>` : '';
+  return `<div id="mid" class="${mine ? 'mine' : 'theirs'}"><div class="tbanner"><b>${banner}</b><span class="tn">Turn ${G.turn || 0}</span></div>${phaseHTML()}<div class="prompt">${prompt}</div><div class="btns">${alt}${main}${forfeit}</div></div>`;
 }
 function modalHTML() {
   const q = G.pending; if (!q || G.over) return '';
@@ -232,7 +265,11 @@ function onClick(e) {
 }
 function cardClick(uid) {
   const q = G.pending, c = findUid(uid); if (!c) return;
-  if (q.kind === 'main' && q.who === G.viewer && P(G.viewer).hand.includes(c)) { UI.sel = uid; UI.selWell = false; render(); return; }
+  if (q.kind === 'main' && q.who === G.viewer && P(G.viewer).hand.includes(c)) {
+    if (UI.sel === uid && !UI.selWell) { UI.sel = null; render(); return; } // click again to close the menu
+    if (def(c).type === 'Mana' && legalMain(q.who).well.includes(uid)) { answer({ type: 'well', uid }); return; } // Mana cards play in one click
+    UI.sel = uid; UI.selWell = false; render(); return;
+  }
   if (q.kind === 'react' && q.cards.includes(uid)) { answer(uid); return; }
   if (q.kind === 'pick' && q.uids.includes(uid)) { answer({ uid }); return; }
   if (q.kind === 'attack' && q.cands.includes(uid)) { UI.atk.has(uid) ? UI.atk.delete(uid) : UI.atk.add(uid); render(); return; }
