@@ -32,11 +32,14 @@ function cardFace(o, big, cls = '') {
       if (!d.kw.includes('venom') && hasKw(o, 'venom') && !o.tkw.includes('venom')) b.push('Venom');
     }
   }
-  const kl = kwLine(o);
-  const classes = ['card', big ? 'big' : '', cls, onBoard && inPlay(o) && o.tapped ? 'tapped' : ''].join(' ');
-  return `<div class="${classes}" style="--fc:${fc}" data-act="card" data-uid="${o.uid || ''}" data-def="${d.token ? '' : d.id}" tabindex="0">`
+  const kl = kwLine(o), id = d.token ? '' : d.id, tl = (d.text || '').length;
+  const classes = ['card', big ? 'big' : '', cls, onBoard && inPlay(o) && o.tapped ? 'tapped' : '', d.name.length > 19 ? 'longname' : '', tl > 150 ? 'xlong' : tl > 105 ? 'long' : ''].join(' ');
+  const hasArt = id && typeof CARD_ART !== 'undefined' && CARD_ART.has(id);
+  const art = hasArt ? `<div class="art" style="background-image:url('art/${id}.webp')"></div>` : `<div class="art ph"><span>${FAC[d.fac].s}</span></div>`;
+  return `<div class="${classes}" style="--fc:${fc};--frame:url('frames/${d.fac.toLowerCase()}.webp')" data-act="card" data-uid="${o.uid || ''}" data-def="${id}" tabindex="0">`
+    + art
     + `<div class="hd"><span class="nm">${esc(d.name)}</span>${d.token || d.type === 'Mana' ? '' : `<span class="cost">${costStr(d)}</span>`}</div>`
-    + `<div class="ty">${d.token ? 'Token ' : ''}${d.type}${kl ? ' · ' + kl : ''}${d.rar && typeof RARITY !== 'undefined' ? `<span class="rar r${d.rar}" title="${RARITY[d.rar]}">${RARITY[d.rar]}</span>` : ''}</div>`
+    + `<div class="ty"><span>${d.token ? 'Token ' : ''}${d.type}${kl ? ' · ' + kl : ''}</span>${d.rar && typeof RARITY !== 'undefined' ? `<span class="rar r${d.rar}" title="${RARITY[d.rar]}">${RARITY[d.rar]}</span>` : ''}</div>`
     + `<div class="tx">${esc(d.text || '')}</div>`
     + (b.length ? `<div class="bd">${b.map(x => x.startsWith('<span') ? x : `<span>${x}</span>`).join('')}</div>` : '')
     + st + `</div>`;

@@ -71,3 +71,6 @@ You only need Node.js 18 or newer.
 - `npm test` checks the server rules: accounts, packs, selling, deck checks, admin-only Sol, and full games against the computer.
 - `npm run dev` runs the whole game at http://localhost:8787 with a temporary in-memory database.
 - `node tests/ai-check.cjs aiai 72` plays the computer against itself across every deck matchup and reports the results.
+
+## Card frames and art
+Each faction has its own frame in `public/frames/<faction>.webp`. Card art goes in `public/art/<card id>.webp` (the art window is about 4:3 landscape). Run `node build.mjs` and any card with a matching file shows its art; the rest show a faction placeholder.

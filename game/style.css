@@ -80,28 +80,32 @@ button:focus-visible, .card:focus-visible { outline: 2px solid var(--brass-hi); 
 .wt.cand { cursor: pointer; box-shadow: 0 0 0 2px var(--good); }
 
 /* cards */
-.card { --w: 108px; width: var(--w); height: calc(var(--w) * 1.42); border-radius: 8px; background: linear-gradient(180deg, var(--parch), var(--parch-2)); color: var(--ink); position: relative; border: 3px solid var(--fc); box-shadow: 0 4px 10px rgba(0,0,0,.6); display: flex; flex-direction: column; font-size: 9.5px; overflow: hidden; flex: 0 0 auto; cursor: default; transition: transform .12s ease; }
-.card .hd { background: var(--fc); color: #fff; padding: 3px 4px 4px; display: flex; justify-content: space-between; gap: 3px; align-items: flex-start; }
-.card .nm { font-family: var(--serif); font-weight: 700; font-size: 10.5px; line-height: 1.1; }
-.card .cost { font-size: 10px; white-space: nowrap; background: rgba(0,0,0,.25); border-radius: 8px; padding: 0 4px; }
-.card .ty { font-size: 8.5px; color: #6e6155; padding: 2px 5px 1px; }
-.card .tx { padding: 1px 5px; flex: 1; overflow: hidden; line-height: 1.22; font-family: var(--serif); font-size: 9.5px; }
-.card .bd { padding: 0 5px 2px; display: flex; flex-wrap: wrap; gap: 2px; }
-.card .bd span { background: #2b221c; color: #f6efe0; border-radius: 4px; padding: 0 3px; font-size: 9px; line-height: 13px; }
+.card { --w: 108px; width: var(--w); height: calc(var(--w) * 1.3333); border-radius: calc(var(--w) * .045); color: var(--ink); position: relative; box-shadow: 0 4px 10px rgba(0,0,0,.6); font-size: calc(var(--w) * .052); flex: 0 0 auto; cursor: default; transition: transform .12s ease; }
+.card::after { content: ""; position: absolute; inset: 0; background: var(--frame) center / 100% 100% no-repeat; z-index: 1; pointer-events: none; }
+.card > :not(.art) { position: absolute; z-index: 2; }
+.card .art { position: absolute; left: 6%; right: 6%; top: 10.6%; height: 43%; z-index: 0; background: center / cover no-repeat; border-radius: 8%/12%; }
+.card .art.ph { background: radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--fc) 70%, #fff 10%), color-mix(in srgb, var(--fc) 55%, #120c08) 75%); display: grid; place-items: center; }
+.card .art.ph span { font-size: calc(var(--w) * .2); opacity: .45; filter: grayscale(.2); }
+.card .hd { left: 12%; right: 9.5%; top: 4.2%; height: 5.6%; display: flex; justify-content: space-between; align-items: center; gap: 2%; }
+.card .nm { font-family: var(--serif); font-weight: 700; font-size: calc(var(--w) * .068); line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #2a1d12; }
+.card.longname .nm { font-size: calc(var(--w) * .056); }
+.card .cost { font-size: calc(var(--w) * .058); white-space: nowrap; line-height: 1; font-weight: 700; color: #2a1d12; }
+.card .ty { left: 9.5%; right: 9%; top: 54.6%; height: 4.6%; display: flex; align-items: center; justify-content: space-between; gap: 2%; font-size: calc(var(--w) * .046); color: #4a3a2b; font-weight: 600; white-space: nowrap; }
+.card .ty > span:first-child { overflow: hidden; text-overflow: ellipsis; }
+.card .tx { left: 10%; right: 10%; top: 63%; bottom: 13.5%; overflow: hidden; line-height: 1.25; font-family: var(--serif); color: #2a1d12; }
+.card.long .tx { font-size: calc(var(--w) * .046); } .card.xlong .tx { font-size: calc(var(--w) * .041); }
+.card .bd { left: 8%; right: 8%; bottom: 48%; display: flex; flex-wrap: wrap-reverse; gap: 2px; }
+.card .bd span { background: rgba(43,34,28,.88); color: #f6efe0; border-radius: 4px; padding: 0 3px; font-size: max(8px, calc(var(--w) * .05)); line-height: 1.45; }
 .card .bd span.mk { background: var(--danger); }
-.card .st { position: absolute; bottom: 3px; right: 3px; font-weight: 800; font-size: 13px; background: #2b221c; color: #fff; border-radius: 6px; padding: 1px 6px; font-family: var(--sans); }
-.card .st .up { color: var(--good); } .card .st .down { color: #ffb4a4; }
+.card .st { left: 74%; width: 22.6%; top: 87.4%; height: 6.4%; display: grid; place-items: center; font-weight: 800; font-size: calc(var(--w) * .075); color: #2a1d12; font-family: var(--sans); line-height: 1; }
+.card .st .up { color: #1f7a3f; } .card .st .down { color: #a3261a; }
 .card.tapped { filter: saturate(.35) brightness(.72); transform: rotate(-4deg); }
 .card.cand { cursor: pointer; box-shadow: 0 0 0 3px var(--good), 0 0 16px rgba(108,196,138,.55); }
 .card.play { cursor: pointer; box-shadow: 0 0 0 3px var(--brass), 0 0 14px rgba(202,162,76,.55); }
 .card.sel { box-shadow: 0 0 0 3px var(--brass-hi), 0 0 18px rgba(236,201,109,.7); transform: translateY(-6px); }
-.card.atk { border-color: var(--danger); }
-.card.atk::before { content: "⚔"; position: absolute; left: 3px; bottom: 2px; font-size: 13px; color: var(--danger); }
-.card.big { --w: 250px; font-size: 14px; cursor: default; transform: none; filter: none; }
-.card.big .nm { font-size: 18px; } .card.big .cost { font-size: 15px; padding: 1px 7px; }
-.card.big .ty { font-size: 12px; padding: 5px 9px 3px; } .card.big .tx { font-size: 15px; padding: 4px 10px; line-height: 1.4; }
-.card.big .bd span { font-size: 12px; line-height: 17px; padding: 0 5px; } .card.big .st { font-size: 20px; padding: 2px 10px; bottom: 8px; right: 8px; }
-.card.big .hd { padding: 7px 9px 8px; }
+.card.atk { box-shadow: 0 0 0 3px var(--danger), 0 0 14px rgba(200,60,40,.6); }
+.card.atk::before { content: "⚔"; position: absolute; left: 9%; top: 12%; z-index: 3; font-size: calc(var(--w) * .14); color: #fff; text-shadow: 0 0 4px var(--danger), 0 0 8px var(--danger); }
+.card.big { --w: 260px; cursor: default; transform: none; filter: none; }
 .back { width: 46px; height: 64px; border-radius: 6px; border: 2px solid #b48a3c; background: repeating-linear-gradient(45deg, #5e1f22 0 6px, #4a171a 6px 12px); flex: 0 0 auto; box-shadow: 0 2px 4px rgba(0,0,0,.5); }
 
 /* mid rail */
@@ -215,8 +219,7 @@ form.seat button[type=submit] { margin-top: 6px; }
 .facbtn em { font-style: normal; font-size: 12px; color: var(--brass-hi); margin-top: 2px; }
 
 /* ---------- rarity ---------- */
-.card .rar { float: right; font-size: 8px; font-weight: 700; padding: 0 4px; border-radius: 6px; line-height: 13px; margin-left: 2px; }
-.card.big .rar { font-size: 11px; line-height: 17px; padding: 0 6px; }
+.card .rar { font-size: calc(var(--w) * .04); font-weight: 700; padding: 0 .4em; border-radius: 6px; line-height: 1.5; flex: 0 0 auto; }
 .rar.rC { background: #d9d2c0; color: #4a4236; }
 .rar.rU { background: #b9cde0; color: #1f3b57; }
 .rar.rR { background: #e9c766; color: #4a3505; }
