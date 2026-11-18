@@ -1,7 +1,7 @@
 // ================= AHRIVAEA TCG SERVER (Cloudflare Worker + Durable Object) =================
 import { DEFS, HEROES, DECKS, MANA, RELEASES, CURRENT_RELEASE, replayGame, viewFor, validWire, gameState } from './core.js';
 
-const ECON = { startSol: 500, starterPrice: 500, winSol: 20, packPrice: 100, packSize: 5, tradeValue: 5, maxCopies: 3, deckSize: 40, maxDecks: 30 };
+const ECON = { startSol: 500, starterPrice: 500, winSol: 20, packPrice: 100, packSize: 5, tradeValue: 5, maxCopies: 3, deckSize: 40, maxDecks: 30, maxMana: 25, defaultMana: 15, freeMana: 10 };
 const SET = () => Object.values(DEFS).filter(d => d.type !== 'Mana').map(d => d.id);
 // Expansion Packs: 3 Common, 1 Uncommon and 1 Rare slot that is Legendary 15% of the time.
 const PACK_SLOTS = ['C', 'C', 'C', 'U', 'RL'];
@@ -55,6 +55,7 @@ export class Hub {
         case 'GET /api/me': return json({ account: this.pub(user), config: this.config() });
         case 'POST /api/pack': return json(await this.pack(user));
         case 'POST /api/starter': return json(await this.buyStarter(user, body));
+        case 'POST /api/mana': return json(await this.freeMana(user, body));
         case 'POST /api/trade': return json(await this.trade(user, body));
         case 'POST /api/deck/save': return json(await this.saveDeck(user, body));
         case 'POST /api/deck/delete': return json(await this.deleteDeck(user, body));
@@ -173,9 +174,20 @@ export class Hub {
   }
   // Each starter deck comes with 15 Mana cards of its faction. They can't be sold.
   grantMana(user, fac) {
-    const id = MANA[fac], n = 15;
+    const id = MANA[fac], n = Math.max(0, Math.min(ECON.defaultMana, ECON.maxMana - (user.collection[id] || 0)));
     user.collection[id] = (user.collection[id] || 0) + n;
     user.locked[id] = (user.locked[id] || 0) + n;
+    return n;
+  }
+  // Mana cards are free in the Shop, up to the most a deck can use.
+  async freeMana(user, { fac }) {
+    if (!MANA[fac]) fail(400, 'Choose a faction.');
+    const id = MANA[fac], have = user.collection[id] || 0;
+    if (have >= ECON.maxMana) fail(400, `You already have ${ECON.maxMana} ${DEFS[id].name}, the most a deck can use.`);
+    const n = Math.min(ECON.freeMana, ECON.maxMana - have);
+    user.collection[id] = have + n; user.locked[id] = (user.locked[id] || 0) + n;
+    await this.save(user);
+    return { account: this.pub(user), got: n };
   }
   async buyStarter(user, { fac }) {
     if (!DECKS[fac]) fail(400, 'Choose a starter deck.');
@@ -234,9 +246,12 @@ export class Hub {
       cards[id] = n; total += n;
     }
     if (total > ECON.deckSize) fail(400, `A deck has at most ${ECON.deckSize} cards.`);
+    const mana = deck.mana == null ? ECON.defaultMana : Math.floor(+deck.mana);
+    if (!(mana >= 0 && mana <= ECON.maxMana)) fail(400, `A deck has 0 to ${ECON.maxMana} Mana cards.`);
+    if (mana > (user.collection[MANA[fac]] || 0)) fail(400, `You don't own ${mana} ${DEFS[MANA[fac]].name}. They're free in the Shop.`);
     const id = /^d[0-9a-f]{8}$/.test(deck.id || '') ? deck.id : 'd' + randHex(4);
     const i = user.decks.findIndex(d => d.id === id);
-    const clean = { id, name, fac, cards };
+    const clean = { id, name, fac, cards, mana };
     if (i >= 0) user.decks[i] = clean;
     else { if (user.decks.length >= ECON.maxDecks) fail(400, `You can keep up to ${ECON.maxDecks} decks.`); user.decks.push(clean); }
     await this.save(user);
@@ -261,10 +276,11 @@ export class Hub {
     if (!deck) fail(400, 'Choose one of your decks.');
     const list = this.deckList(user, deck);
     if (!list) fail(400, 'That deck isn’t complete yet.');
+    const mana = Math.min(deck.mana == null ? ECON.defaultMana : deck.mana, user.collection[MANA[deck.fac]] || 0);
     if (!HEROES[aiFac]) fail(400, 'Choose an opponent.');
     if (user.game) await this.finish(user, await this.store.get('g:' + user.game), false, true);
     const rec = { id: 'g' + randHex(8), owner: user.name.toLowerCase(), seed: crypto.getRandomValues(new Uint32Array(1))[0], answers: [], created: Date.now(),
-      cfg: { decks: [deck.fac, aiFac], lists: [list, null], names: [user.name, 'Computer'], ai: [false, true], level: level === 'normal' ? 'normal' : 'hard' } };
+      cfg: { decks: [deck.fac, aiFac], lists: [list, null], mana: [mana, null], names: [user.name, 'Computer'], ai: [false, true], level: level === 'normal' ? 'normal' : 'hard' } };
     const st = await this.run(rec);
     user.game = rec.id;
     await this.store.put('g:' + rec.id, rec);

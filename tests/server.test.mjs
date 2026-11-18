@@ -37,6 +37,21 @@ assert.equal(r.body.account.locked['shieldmaiden'], 2, 'bought starter cards are
 assert.equal(r.body.account.collection[MANA.Oathsong], 15, 'a starter deck comes with 15 Mana cards of its faction');
 assert.equal(r.body.account.collection[MANA.Warbound], 15); assert.equal(r.body.account.locked[MANA.Warbound], 15, 'Mana cards are locked');
 assert.equal((await call('/api/trade', { id: MANA.Warbound }, owner)).status, 400, 'Mana cards cannot be sold');
+{ // free Mana: up to 25 per faction, and decks choose how many to play
+  let m = await call('/api/mana', { fac: 'Wildborn' }, owner); assert.equal(m.status, 200); assert.equal(m.body.got, 10);
+  assert.equal(m.body.account.sol, 500, 'Mana is free');
+  await call('/api/mana', { fac: 'Wildborn' }, owner); m = await call('/api/mana', { fac: 'Wildborn' }, owner);
+  assert.equal(m.body.got, 5); assert.equal(m.body.account.collection[MANA.Wildborn], 25, 'capped at 25');
+  assert.equal((await call('/api/mana', { fac: 'Wildborn' }, owner)).status, 400, 'no more past 25');
+  const dk = m.body.account.decks[0];
+  assert.equal((await call('/api/deck/save', { deck: { ...dk, mana: 16 } }, owner)).status, 400, 'can only use Mana you own');
+  m = await call('/api/mana', { fac: 'Warbound' }, owner); assert.equal(m.body.account.collection[MANA.Warbound], 25);
+  assert.equal((await call('/api/deck/save', { deck: { ...dk, mana: 26 } }, owner)).status, 400, 'at most 25 Mana in a deck');
+  m = await call('/api/deck/save', { deck: { ...dk, mana: 20 } }, owner); assert.equal(m.status, 200);
+  assert.equal(m.body.account.decks.find(d => d.id === dk.id).mana, 20);
+  m = await call('/api/deck/save', { deck: { id: '', name: 'Wild', fac: 'Wildborn', cards: {}, mana: 25 } }, owner); assert.equal(m.status, 200);
+  await call('/api/deck/delete', { id: m.body.deckId }, owner);
+}
 { // an account made before starters included Mana gets them on next login
   const u = await hub.store.get('u:friend'); delete u.manaGiven; delete u.collection[MANA.Lorebound]; delete u.locked[MANA.Lorebound]; await hub.store.put('u:friend', u);
   const lr = await call('/api/me', undefined, friend);

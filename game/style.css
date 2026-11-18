@@ -302,3 +302,9 @@ form.seat button[type=submit] { margin-top: 6px; }
 .shoptile { position: relative; padding-right: 92px; min-height: 112px; }
 .shoptile img { position: absolute; right: 14px; top: 50%; transform: translateY(-50%) rotate(4deg); width: 64px; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,.6), 0 0 0 1px #b8913f; }
 .packoffer { flex-wrap: nowrap; align-items: center; } .packoffer > div:last-child { flex: 1; min-width: 0; } @media (max-width: 700px) { .packoffer { flex-wrap: wrap; } }
+.manarow { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 6px; padding: 6px 8px; border-radius: 6px; border-left: 4px solid var(--fc); background: rgba(255,255,255,.06); color: #eadcc4; }
+.manarow .stepper { display: flex; align-items: center; gap: 6px; }
+.manarow .stepper b { min-width: 2ch; text-align: center; font-size: 15px; color: #fff; }
+.manarow .stepper .mini { padding: 0 9px; font-size: 15px; line-height: 22px; }
+.linkbtn { background: none; border: 0; padding: 4px 0; color: var(--brass-hi); text-decoration: underline; cursor: pointer; font-weight: 400; }
+.manarow .stepper .mini:hover:not(:disabled), .manarow .stepper .mini:focus-visible { color: #1a0e07; }

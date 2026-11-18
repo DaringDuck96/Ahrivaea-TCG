@@ -506,7 +506,8 @@ async function takeTurn() {
 function mkPlayer(i, cfg) {
   const fac = cfg.decks[i], h = HEROES[fac];
   const spells = cfg.lists && cfg.lists[i] ? cfg.lists[i] : DECKS[fac].flatMap(id => [id, id]);
-  const deck = shuffle([...spells, ...Array(MANA_COPIES).fill(MANA[fac])].map(id => ({ uid: UID++, id, owner: i, tapped: false })));
+  const nMana = cfg.mana && cfg.mana[i] != null ? cfg.mana[i] : MANA_COPIES;
+  const deck = shuffle([...spells, ...Array(nMana).fill(MANA[fac])].map(id => ({ uid: UID++, id, owner: i, tapped: false })));
   return { i, name: cfg.names[i] || ('Player ' + (i + 1)), fac, hero: { awakened: false, used: false, wellCast: false }, life: h.life,
     deck, hand: [], well: [], board: [], relics: [], grave: [], wellPlays: 0, damageTurns: new Set(), reactionsCast: 0, markedKills: 0, lastUnitTurn: -1 };
 }
