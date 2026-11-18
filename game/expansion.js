@@ -259,6 +259,6 @@ X('dawn_resurrection', 'Dawn of Resurrection', 'Spell', 4, 2, null, null, 'L', '
 
 // ================= RELEASES =================
 // Every card so far belongs to the first Release. A later Release gets its own id and name here.
-const RELEASES = { intro: { name: 'Intro to Ahrivaea' } };
+const RELEASES = { intro: { name: 'Intro to Ahrivaea', set: 1, packArt: 'packs/intro-to-ahrivaea.jpg' } };
 const CURRENT_RELEASE = 'intro';
 for (const d of Object.values(DEFS)) if (!d.rel) d.rel = 'intro';

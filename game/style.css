@@ -282,3 +282,19 @@ form.seat button[type=submit] { margin-top: 6px; }
 .bside > * { flex-shrink: 0; }
 .pack { padding: 8px; }
 .pack span { font-size: 15px; line-height: 1.2; }
+
+/* ---------- booster pack ---------- */
+.boosterwrap { perspective: 900px; }
+.booster { position: relative; width: 230px; aspect-ratio: 1102 / 1427; border-radius: 6px; overflow: hidden; box-shadow: 0 14px 34px rgba(0,0,0,.65), 0 0 0 2px #b8913f; transform: rotate(-3deg); transition: transform .25s ease; }
+.booster:hover { transform: rotate(-1deg) translateY(-4px); }
+.booster img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.booster .crimp { position: absolute; left: 0; right: 0; height: 14px; background: repeating-linear-gradient(90deg, #c9a24c 0 4px, #8a6a25 4px 8px); opacity: .95; }
+.booster .crimp.top { top: 0; } .booster .crimp.bottom { bottom: 0; }
+.booster .sheen { position: absolute; inset: 0; background: linear-gradient(115deg, transparent 30%, rgba(255,255,255,.28) 45%, transparent 60%); mix-blend-mode: screen; pointer-events: none; }
+.booster .setno { position: absolute; right: 8px; bottom: 20px; font-size: 11px; font-weight: 700; color: #2b221c; background: rgba(241,231,207,.9); border-radius: 8px; padding: 1px 7px; }
+.booster.tearing { animation: tear .65s ease forwards; }
+@keyframes tear { 0% { transform: rotate(-3deg); } 30% { transform: rotate(3deg) scale(1.04); } 60% { transform: rotate(-2deg) scale(1.06); } 100% { transform: rotate(0) scale(1.1) translateY(-10px); opacity: .0; } }
+@media (prefers-reduced-motion: reduce) { .booster.tearing { animation: none; } .booster { transition: none; } }
+.shoptile { position: relative; padding-right: 92px; min-height: 112px; }
+.shoptile img { position: absolute; right: 14px; top: 50%; transform: translateY(-50%) rotate(4deg); width: 64px; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,.6), 0 0 0 1px #b8913f; }
+.packoffer { flex-wrap: nowrap; align-items: center; } .packoffer > div:last-child { flex: 1; min-width: 0; } @media (max-width: 700px) { .packoffer { flex-wrap: wrap; } }

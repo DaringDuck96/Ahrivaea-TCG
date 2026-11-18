@@ -109,7 +109,7 @@ function homeHTML() {
     <button class="tile" data-act="nav" data-to="play"><b>Play</b><span>${ready} deck${ready === 1 ? '' : 's'} ready. Beat the computer to earn ${E.winSol} Sol.</span></button>
     <button class="tile" data-act="nav" data-to="decks"><b>Decks</b><span>${ACC.decks.length} saved. Build new ones from your collection.</span></button>
     <button class="tile" data-act="nav" data-to="collection"><b>Collection</b><span>${n} cards, ${uniq} of ${SETIDS().length} different.</span></button>
-    <button class="tile" data-act="nav" data-to="shop"><b>Shop</b><span>Packs: ${E.packSize} random cards for ${E.packPrice} Sol. Starter Decks: ${E.starterPrice} Sol.</span></button>
+    <button class="tile shoptile" data-act="nav" data-to="shop"><img src="${RELEASES[CURRENT_RELEASE].packArt}" alt=""><b>Shop</b><span>Packs: ${E.packSize} random cards for ${E.packPrice} Sol. Starter Decks: ${E.starterPrice} Sol.</span></button>
   </div>
   <p class="record">Record: ${ACC.stats.wins} wins, ${ACC.stats.losses} losses, ${ACC.stats.packs} packs opened.</p>
   <div class="acct"><button class="ghost mini" data-act="pwtoggle">${VIEW.pwOpen ? 'Close' : 'Change password'}</button>
@@ -199,11 +199,15 @@ function collectionHTML() {
   <div class="pool">${ids.map(id => { const hv = owned(id), s = sellable(id), lk = Math.min(lockedN(id), hv);
     return `<div class="pcard ${hv ? '' : 'none'}">${cardFace({ id }, false).replace('data-act="card"', 'data-act="x"')}<div class="own">${hv ? `Owned ×${hv}${lk ? ` (${lk} from starter)` : ''}` : 'Not owned'}${s ? ` <button class="mini" data-act="trade1" data-id="${id}" ${BUSY ? 'disabled' : ''}>Sell 1 for ${sellOf(id)} Sol</button>` : ''}</div></div>`; }).join('')}</div></div>`;
 }
+function packArtHTML(tearing) {
+  const r = RELEASES[(CONF && CONF.release) || CURRENT_RELEASE] || RELEASES[CURRENT_RELEASE];
+  return `<div class="boosterwrap"><div class="booster ${tearing ? 'tearing' : ''}" role="img" aria-label="${esc(r.name)} Expansion Pack"><img src="${r.packArt}" alt=""><span class="crimp top"></span><span class="crimp bottom"></span><span class="sheen"></span><span class="setno">Set ${r.set}</span></div></div>`;
+}
 function shopHTML() {
   const E = ECONF(), can = ACC.sol >= E.packPrice, opened = VIEW.opened, rel = (CONF && CONF.releaseName) || 'Intro to Ahrivaea';
   const lp = Math.round(((CONF && CONF.legendaryChance) || 0.15) * 100);
   return `<div class="hub"><h1>Shop</h1>
-  <div class="packoffer"><div class="pack"><span>${esc(rel)}</span><b>Expansion Pack</b></div>
+  <div class="packoffer">${packArtHTML(VIEW.tearing)}
   <div><h2 class="h2">${esc(rel)} Expansion Pack</h2><p class="sub small">${E.packSize} cards from all ${SETIDS().length} cards in ${esc(rel)}, including cards you can't get any other way: 3 Common, 1 Uncommon and 1 Rare. That Rare is upgraded to a Legendary ${lp}% of the time. You have ${ACC.sol} Sol.</p>
   <button data-act="buypack" ${can && !BUSY ? '' : 'disabled'}>Buy a pack for ${E.packPrice} Sol</button>${can ? '' : `<p class="muted small">You need ${E.packPrice - ACC.sol} more Sol. Win games or sell cards from packs.</p>`}</div></div>
   ${opened ? `<h2 class="h2">You opened</h2><div class="reveal">${opened.map((c, i) => `<div class="rv" style="animation-delay:${i * 180}ms">${cardFace({ id: c.id }, false).replace('data-act="card"', 'data-act="x"')}${c.fresh ? '<div class="newtag">New</div>' : ''}</div>`).join('')}</div>` : ''}
@@ -262,7 +266,7 @@ function hubClick(el, act) {
     case 'changepw': { const cur = document.getElementById('pwcur').value, nw = document.getElementById('pwnew').value; busy(async () => { await api('/api/password', { current: cur, password: nw }); VIEW.pwOpen = false; TOAST = 'Password changed.'; }); return true; }
     case 'pwtoggle': VIEW.pwOpen = !VIEW.pwOpen; render(); return true;
     case 'buystarter': { const f = el.dataset.f; busy(async () => { const r = await api('/api/starter', { fac: f }); ACC = r.account; TOAST = `You bought the ${f} Starter Deck. It's in your Decks.`; }); return true; }
-    case 'buypack': busy(async () => { const r = await api('/api/pack', {}); ACC = r.account; VIEW.opened = r.opened; }); return true;
+    case 'buypack': busy(async () => { VIEW.opened = null; VIEW.tearing = true; render(); const r = await api('/api/pack', {}); await new Promise(res => setTimeout(res, 650)); VIEW.tearing = false; ACC = r.account; VIEW.opened = r.opened; }).finally(() => { VIEW.tearing = false; }); return true;
     case 'setsol': { const u = ADMIN[+el.dataset.i], v = document.getElementById('sol' + el.dataset.i).value; busy(async () => { const r = await api('/api/admin/sol', { name: u.name, sol: +v }); ACC = r.account; u.sol = Math.floor(+v); TOAST = `${u.name} now has ${u.sol} Sol.`; }); return true; }
     case 'forfeit': busy(async () => { ACC = (await api('/api/game/forfeit', {})).account; G = null; GAME_ID = null; SCREEN = 'home'; }); return true;
     case 'home': busy(async () => { const r = await api('/api/me'); ACC = r.account; G = null; GAME_ID = null; INSP = null; SCREEN = 'home'; VIEW = {}; }); return true;
